@@ -24,18 +24,30 @@ const SITE_CONFIG = {
 // 这些是经过测试可用的苹果 CMS V10 资源站
 // 失效的源会自动被前端跳过，无需手动删除
 const API_SITES = {
-    tyyszy: {
-        api: 'https://tyyszy.com/api.php/provide/vod',
-        name: '天翼资源',
-    },
     ffzy: {
         api: 'https://api.ffzyapi.com/api.php/provide/vod',
         name: '非凡资源',
         detail: 'https://ffzy5.tv',  // 非凡影视的详情页域名，用于特殊源处理
     },
-    wolong: {
-        api: 'https://collect.wolongzyw.com/api.php/provide/vod',
-        name: '卧龙资源',
+    ffzy_backup: {
+        api: 'https://cj.ffzyapi.com/api.php/provide/vod',
+        name: '非凡采集',
+    },
+    subocaiji: {
+        api: 'https://subocaiji.com/api.php/provide/vod',
+        name: '速播资源',
+    },
+    guangsu: {
+        api: 'https://api.guangsuapi.com/api.php/provide/vod',
+        name: '光速资源',
+    },
+    bfzy: {
+        api: 'https://bfzyapi.com/api.php/provide/vod',
+        name: '暴风资源',
+    },
+    tyyszy: {
+        api: 'https://tyyszy.com/api.php/provide/vod',
+        name: '天翼资源',
     },
     dbzy: {
         api: 'https://dbzy.tv/api.php/provide/vod',
