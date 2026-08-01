@@ -21,13 +21,26 @@ const SITE_CONFIG = {
 };
 
 // API站点配置
+// 这些是经过测试可用的苹果 CMS V10 资源站
+// 失效的源会自动被前端跳过，无需手动删除
 const API_SITES = {
-    testSource: {
-        api: 'https://www.example.com/api.php/provide/vod',
-        name: '空内容测试源',
-        adult: true
-    }
-    //ARCHIVE https://telegra.ph/APIs-08-12
+    tyyszy: {
+        api: 'https://tyyszy.com/api.php/provide/vod',
+        name: '天翼资源',
+    },
+    ffzy: {
+        api: 'https://api.ffzyapi.com/api.php/provide/vod',
+        name: '非凡资源',
+        detail: 'https://ffzy5.tv',  // 非凡影视的详情页域名，用于特殊源处理
+    },
+    wolong: {
+        api: 'https://collect.wolongzyw.com/api.php/provide/vod',
+        name: '卧龙资源',
+    },
+    dbzy: {
+        api: 'https://dbzy.tv/api.php/provide/vod',
+        name: '豆瓣资源',
+    },
 };
 
 // 定义合并方法
