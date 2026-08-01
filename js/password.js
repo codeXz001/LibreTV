@@ -14,11 +14,15 @@ function isPasswordProtected() {
 
 /**
  * 检查是否强制要求设置密码
- * 如果没有设置有效的 PASSWORD，则认为需要强制设置密码
- * 为了安全考虑，所有部署都必须设置密码
+ * 默认无密码模式（不强制要求设置 PASSWORD）
+ * 如果用户在 Cloudflare Pages 设置了 PASSWORD 环境变量，
+ * isPasswordProtected() 会自动识别并启用密码保护
+ *
+ * 如需恢复"必须设置密码"模式，把下面改为：
+ *   return !isPasswordProtected();
  */
 function isPasswordRequired() {
-    return !isPasswordProtected();
+    return false;
 }
 
 /**
