@@ -1,47 +1,31 @@
-import { sha256 } from './js/sha256.js'; // 需新建或引入SHA-256实现
+// middleware.js
+// Vercel Edge Middleware：把 PASSWORD SHA-256 注入到 HTML
+// 公共逻辑下沉到 inject-env-core，本文件只剩 Vercel Edge 运行时差异
 
-// Vercel Middleware to inject environment variables
+import { sha256Hex, injectPasswordHash } from './inject-env-core/index.mjs';
+
 export default async function middleware(request) {
-  // Get the URL from the request
   const url = new URL(request.url);
-  
-  // Only process HTML pages
+
+  // 只处理 HTML 页面
   const isHtmlPage = url.pathname.endsWith('.html') || url.pathname.endsWith('/');
-  if (!isHtmlPage) {
-    return; // Let the request pass through unchanged
-  }
+  if (!isHtmlPage) return; // 让其他请求直通
 
-  // Fetch the original response
   const response = await fetch(request);
-  
-  // Check if it's an HTML response
+
   const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('text/html')) {
-    return response; // Return the original response if not HTML
-  }
+  if (!contentType.includes('text/html')) return response;
 
-  // Get the HTML content
   const originalHtml = await response.text();
-  
-  // Replace the placeholder with actual environment variable
-  // If PASSWORD is not set, replace with empty string
   const password = process.env.PASSWORD || '';
-  let passwordHash = '';
-  if (password) {
-    passwordHash = await sha256(password);
-  }
-  
-  // 替换密码占位符
-  let modifiedHtml = originalHtml.replace(
-    'window.__ENV__.PASSWORD = "{{PASSWORD}}";',
-    `window.__ENV__.PASSWORD = "${passwordHash}"; // SHA-256 hash`
-  );
+  const passwordHash = password ? await sha256Hex(password) : '';
 
-  // 修复Response构造
+  const modifiedHtml = injectPasswordHash(originalHtml, passwordHash);
+
   return new Response(modifiedHtml, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers
+    headers: response.headers,
   });
 }
 

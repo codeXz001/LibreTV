@@ -505,6 +505,41 @@ function setupEventListeners() {
         }
     });
 
+    // 阶段 3.1：搜索结果卡片事件委托（替代 onclick 模板字符串）
+    const resultsContainer = document.getElementById('results');
+    if (resultsContainer) {
+        resultsContainer.addEventListener('click', function (e) {
+            const card = e.target.closest('.js-search-result');
+            if (!card) return;
+            showDetails(
+                card.dataset.id || '',
+                card.dataset.name || '',
+                card.dataset.source || ''
+            );
+        });
+    }
+
+    // 阶段 3.1：剧集按钮事件委托（替代 onclick 模板字符串）
+    // episodesGrid 在 showDetails 里动态创建，绑定到 modalContent 上
+    document.addEventListener('click', function (e) {
+        const epBtn = e.target.closest('.js-episode-btn');
+        if (epBtn) {
+            const url = epBtn.dataset.url || '';
+            const name = epBtn.dataset.name || '';
+            const source = epBtn.dataset.source || '';
+            const idx = parseInt(epBtn.dataset.index || '0', 10);
+            const vodId = epBtn.dataset.vodId || '';
+            playVideo(url, name, source, idx, vodId);
+            return;
+        }
+        const toggleBtn = e.target.closest('.js-toggle-order');
+        if (toggleBtn) {
+            const source = toggleBtn.dataset.source || '';
+            const vodId = toggleBtn.dataset.vodId || '';
+            toggleEpisodeOrder(source, vodId);
+        }
+    });
+
     // 点击外部关闭设置面板和历史记录面板
     document.addEventListener('click', function (e) {
         // 关闭设置面板
@@ -746,23 +781,31 @@ async function search() {
             // 修改为水平卡片布局，图片在左侧，文本在右侧，并优化样式
             const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
 
+            // 阶段 3.1：XSS 修复 —— 用 data-* 属性替代 onclick 模板字符串
+            // 之前 `onclick="showDetails('${safeId}','${safeName}','${sourceCode}')"`
+            // 里的 sourceCode 和 episode 来自外部接口，未严格转义，存在 XSS 注入面。
+            // 改用事件委托 + data-*，由容器上的 click 监听器读 dataset。
+            const safeApiUrl = item.api_url ? item.api_url.replace(/"/g, '&quot;') : '';
             return `
-                <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full shadow-sm hover:shadow-md" 
-                     onclick="showDetails('${safeId}','${safeName}','${sourceCode}')" ${apiUrlAttr}>
+                <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full shadow-sm hover:shadow-md js-search-result"
+                     data-id="${safeId}"
+                     data-name="${safeName}"
+                     data-source="${sourceCode}"
+                     data-api-url="${safeApiUrl}">
                     <div class="flex h-full">
                         ${hasCover ? `
                         <div class="relative flex-shrink-0 search-card-img-container">
-                            <img src="${item.vod_pic}" alt="${safeName}" 
-                                 class="h-full w-full object-cover transition-transform hover:scale-110" 
-                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');" 
+                            <img src="${item.vod_pic}" alt="${safeName}"
+                                 class="h-full w-full object-cover transition-transform hover:scale-110"
+                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');"
                                  loading="lazy">
                             <div class="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent"></div>
                         </div>` : ''}
-                        
+
                         <div class="p-2 flex flex-col flex-grow">
                             <div class="flex-grow">
                                 <h3 class="font-semibold mb-2 break-words line-clamp-2 ${hasCover ? '' : 'text-center'}" title="${safeName}">${safeName}</h3>
-                                
+
                                 <div class="flex flex-wrap ${hasCover ? '' : 'justify-center'} gap-1 mb-2">
                                     ${(item.type_name || '').toString().replace(/</g, '&lt;') ?
                     `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-blue-500 text-blue-300">
@@ -777,19 +820,9 @@ async function search() {
                                     ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
                                 </p>
                             </div>
-                            
+
                             <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-800">
                                 ${sourceInfo ? `<div>${sourceInfo}</div>` : '<div></div>'}
-                                <!-- 接口名称过长会被挤变形
-                                <div>
-                                    <span class="text-gray-500 flex items-center hover:text-blue-400 transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                        </svg>
-                                        播放
-                                    </span>
-                                </div>
-                                -->
                             </div>
                         </div>
                     </div>
@@ -951,8 +984,9 @@ async function showDetails(id, vod_name, sourceCode) {
                 ${detailInfoHtml}
                 <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
                     <div class="flex items-center gap-2">
-                        <button onclick="toggleEpisodeOrder('${sourceCode}', '${id}')" 
-                                class="px-3 py-1.5 bg-[#333] hover:bg-[#444] border border-[#444] rounded text-sm transition-colors flex items-center gap-1">
+                        <button class="js-toggle-order px-3 py-1.5 bg-[#333] hover:bg-[#444] border border-[#444] rounded text-sm transition-colors flex items-center gap-1"
+                                data-source="${sourceCode.replace(/"/g, '&quot;')}"
+                                data-vod-id="${id.replace(/"/g, '&quot;')}">
                             <svg class="w-4 h-4 transform ${episodesReversed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
                             </svg>
@@ -1094,12 +1128,21 @@ function handlePlayerError() {
 // 辅助函数用于渲染剧集按钮（使用当前的排序状态）
 function renderEpisodes(vodName, sourceCode, vodId) {
     const episodes = episodesReversed ? [...currentEpisodes].reverse() : currentEpisodes;
+    // 阶段 3.1：用 data-* 属性 + 容器事件委托替代 onclick 模板字符串
+    // 之前 `onclick="playVideo('${episode}','...','${sourceCode}',${realIndex},'${vodId}')"`
+    // 里的 episode（m3u8 URL）和 sourceCode 来自外部接口，未充分转义。
+    const safeVodName = vodName.replace(/"/g, '&quot;');
     return episodes.map((episode, index) => {
         // 根据倒序状态计算真实的剧集索引
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
         return `
-            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', '${sourceCode}', ${realIndex}, '${vodId}')" 
-                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn">
+            <button id="episode-${realIndex}"
+                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn js-episode-btn"
+                    data-url="${episode.replace(/"/g, '&quot;')}"
+                    data-name="${safeVodName}"
+                    data-source="${sourceCode}"
+                    data-index="${realIndex}"
+                    data-vod-id="${vodId}">
                 ${realIndex + 1}
             </button>
         `;
@@ -1126,8 +1169,10 @@ function toggleEpisodeOrder(sourceCode, vodId) {
         episodesGrid.innerHTML = renderEpisodes(currentVideoTitle, sourceCode, vodId);
     }
 
-    // 更新按钮文本和箭头方向
-    const toggleBtn = document.querySelector(`button[onclick="toggleEpisodeOrder('${sourceCode}', '${vodId}')"]`);
+    // 阶段 3.1：改用 data-* 属性定位按钮，不再依赖 onclick 属性字符串
+    const toggleBtn = document.querySelector(
+        `.js-toggle-order[data-source="${CSS.escape(sourceCode)}"][data-vod-id="${CSS.escape(vodId)}"]`
+    );
     if (toggleBtn) {
         toggleBtn.querySelector('span').textContent = episodesReversed ? '正序排列' : '倒序排列';
         const arrowIcon = toggleBtn.querySelector('svg');

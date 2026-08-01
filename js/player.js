@@ -864,6 +864,17 @@ function renderEpisodes() {
         return;
     }
 
+    // 阶段 3.1：事件委托（一次绑定，多次重渲染自动复用）
+    if (!episodesList.dataset.bound) {
+        episodesList.addEventListener('click', function (e) {
+            const btn = e.target.closest('.js-player-episode');
+            if (!btn) return;
+            const idx = parseInt(btn.dataset.index || '0', 10);
+            if (!isNaN(idx)) playEpisode(idx);
+        });
+        episodesList.dataset.bound = '1';
+    }
+
     const episodes = episodesReversed ? [...currentEpisodes].reverse() : currentEpisodes;
     let html = '';
 
@@ -872,10 +883,11 @@ function renderEpisodes() {
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
         const isActive = realIndex === currentEpisodeIndex;
 
+        // 阶段 3.1：用 data-* + 容器事件委托替代 onclick
         html += `
-            <button id="episode-${realIndex}" 
-                    onclick="playEpisode(${realIndex})" 
-                    class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-blue-500' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn">
+            <button id="episode-${realIndex}"
+                    class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-blue-500' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn js-player-episode"
+                    data-index="${realIndex}">
                 ${realIndex + 1}
             </button>
         `;
@@ -1450,7 +1462,7 @@ function renderResourceInfoBar() {
         <span>加载中...</span>
         <span class="resource-info-bar-videos">-</span>
       </div>
-      <button class="resource-switch-btn flex" id="switchResourceBtn" onclick="showSwitchResourceModal()">
+      <button class="resource-switch-btn flex js-show-switch-modal" id="switchResourceBtn">
         <span class="resource-switch-icon">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#a67c2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
@@ -1476,7 +1488,7 @@ function renderResourceInfoBar() {
         <span>${resourceName}</span>
         <span class="resource-info-bar-videos">${currentEpisodes.length} 个视频</span>
       </div>
-      <button class="resource-switch-btn flex" id="switchResourceBtn" onclick="showSwitchResourceModal()">
+      <button class="resource-switch-btn flex js-show-switch-modal" id="switchResourceBtn">
         <span class="resource-switch-icon">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4v16m0 0l-6-6m6 6l6-6" stroke="#a67c2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
@@ -1606,6 +1618,27 @@ async function showSwitchResourceModal() {
     modalContent.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;grid-column:1/-1;">正在加载资源列表...</div>';
     modal.classList.remove('hidden');
 
+    // 阶段 3.1：资源切换卡片事件委托（一次绑定）
+    if (!modalContent.dataset.switchBound) {
+        modalContent.addEventListener('click', function (e) {
+            const card = e.target.closest('.js-switch-resource');
+            if (!card || card.dataset.current === '1') return;
+            const sourceKey = card.dataset.source || '';
+            const vodId = card.dataset.vodId || '';
+            if (sourceKey && vodId) switchToResource(sourceKey, vodId);
+        });
+        modalContent.dataset.switchBound = '1';
+    }
+
+    // 阶段 3.1："切换资源"按钮事件委托（容器级别）
+    if (!document.body.dataset.switchModalBound) {
+        document.body.addEventListener('click', function (e) {
+            const btn = e.target.closest('.js-show-switch-modal');
+            if (btn) showSwitchResourceModal();
+        });
+        document.body.dataset.switchModalBound = '1';
+    }
+
     // 搜索
     const resourceOptions = selectedAPIs.map((curr) => {
         if (API_SITES[curr]) {
@@ -1666,24 +1699,32 @@ async function showSwitchResourceModal() {
 
     // 渲染资源列表
     let html = '<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4">';
-    
+
     for (const [sourceKey, result] of sortedResults) {
         if (!result) continue;
-        
+
         // 修复 isCurrentSource 判断，确保类型一致
         const isCurrentSource = String(sourceKey) === String(currentSourceCode) && String(result.vod_id) === String(currentVideoId);
         const sourceName = resourceOptions.find(opt => opt.key === sourceKey)?.name || '未知资源';
         const speedResult = speedResults[sourceKey] || { speed: -1, error: '未测试' };
-        
+
+        // 阶段 3.1：用 data-* + 容器事件委托替代 onclick
+        const safeSourceKey = String(sourceKey).replace(/"/g, '&quot;');
+        const safeVodId = String(result.vod_id).replace(/"/g, '&quot;');
+        const safeVodName = String(result.vod_name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        const safeVodPic = String(result.vod_pic || '').replace(/"/g, '&quot;');
+
         html += `
-            <div class="relative group ${isCurrentSource ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105 transition-transform'}" 
-                 ${!isCurrentSource ? `onclick="switchToResource('${sourceKey}', '${result.vod_id}')"` : ''}>
+            <div class="relative group ${isCurrentSource ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-105 transition-transform js-switch-resource'}"
+                 data-source="${safeSourceKey}"
+                 data-vod-id="${safeVodId}"
+                 data-current="${isCurrentSource ? '1' : '0'}">
                 <div class="aspect-[2/3] rounded-lg overflow-hidden bg-gray-800 relative">
-                    <img src="${result.vod_pic}" 
-                         alt="${result.vod_name}"
+                    <img src="${safeVodPic}"
+                         alt="${safeVodName}"
                          class="w-full h-full object-cover"
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjY2IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iMiIgcnk9IjIiPjwvcmVjdD48cGF0aCBkPSJNMjEgMTV2NGEyIDIgMCAwIDEtMiAySDVhMiAyIDAgMCAxLTItMnYtNCI+PC9wYXRoPjxwb2x5bGluZSBwb2ludHM9IjE3IDggMTIgMyA3IDgiPjwvcG9seWxpbmU+PHBhdGggZD0iTTEyIDN2MTIiPjwvcGF0aD48L3N2Zz4='">
-                    
+
                     <!-- 速率显示在图片右上角 -->
                     <div class="absolute top-1 right-1 speed-badge bg-black bg-opacity-75">
                         ${formatSpeedDisplay(speedResult)}

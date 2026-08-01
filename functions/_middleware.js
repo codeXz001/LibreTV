@@ -1,28 +1,24 @@
-import { sha256 } from '../js/sha256.js';
+// functions/_middleware.js
+// Cloudflare Pages Middleware：把 PASSWORD SHA-256 注入到 HTML
+// 公共逻辑下沉到 inject-env-core，本文件只剩 Cloudflare Pages 运行时差异
+
+import { sha256Hex, injectPasswordHash } from '../inject-env-core/index.mjs';
 
 export async function onRequest(context) {
-  const { request, env, next } = context;
+  const { next, env } = context;
   const response = await next();
-  const contentType = response.headers.get("content-type") || "";
-  
-  if (contentType.includes("text/html")) {
-    let html = await response.text();
-    
-    // 处理普通密码
-    const password = env.PASSWORD || "";
-    let passwordHash = "";
-    if (password) {
-      passwordHash = await sha256(password);
-    }
-    html = html.replace('window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
-      `window.__ENV__.PASSWORD = "${passwordHash}";`);
-    
-    return new Response(html, {
-      headers: response.headers,
-      status: response.status,
-      statusText: response.statusText,
-    });
-  }
-  
-  return response;
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!contentType.includes('text/html')) return response;
+
+  const html = await response.text();
+  const password = env.PASSWORD || '';
+  const passwordHash = password ? await sha256Hex(password) : '';
+  const modified = injectPasswordHash(html, passwordHash);
+
+  return new Response(modified, {
+    headers: response.headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
 }
