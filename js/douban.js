@@ -563,6 +563,13 @@ function renderDoubanCards(data, container) {
     container.innerHTML = "";
     container.appendChild(fragment);
 
+    // 对封面图床域名补 dns-prefetch（豆瓣 img1/2/3 已静态预连，会被 hintImageHosts 跳过；
+    // img9 等未预连的轮询域名在此补上）。已配 hintImageHosts 才生效。
+    if (window.hintImageHosts && data && data.subjects) {
+        const covers = data.subjects.map(s => s.cover).filter(Boolean);
+        if (covers.length) window.hintImageHosts(covers);
+    }
+
     // 注册渐进式懒加载（骨架屏 + 进入视口再加载真实图）
     observeLazyImages(container);
 }

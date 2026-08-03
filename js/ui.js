@@ -19,7 +19,9 @@ function toggleSettings(e) {
     }
     // 阻止事件冒泡，防止触发document的点击事件
     e && e.stopPropagation();
+    // 设置面板已迁移至"源配置"视图（settingsPanel 元素不存在），此函数保留为无害空操作
     const panel = document.getElementById('settingsPanel');
+    if (!panel) return;
     panel.classList.toggle('show');
 }
 

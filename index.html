@@ -12,14 +12,14 @@
     <link rel="icon" href="image/logo.png">
     <link rel="apple-touch-icon" href="image/logo-black.png">
     <link rel="manifest" href="manifest.json">
-    
+
     <!-- Tailwind 运行时（本地文件）：defer 避免阻塞首屏解析；Play CDN 通过 MutationObserver 捕获后续动态 class -->
     <script src="libs/tailwindcss.min.js" defer></script>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/index.css">
 </head>
-<body class="page-bg text-white">
-    <!-- 顶部毛玻璃导航栏 -->
+<body class="page-bg text-white" data-view="view-home">
+    <!-- 顶部导航栏（紧凑：Logo + 历史按钮） -->
     <header class="site-nav">
         <div class="site-nav-inner">
             <a href="#" onclick="resetToHome(); return false;" class="nav-logo" aria-label="返回首页">
@@ -34,17 +34,11 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </button>
-                <button onclick="toggleSettings(event)" class="nav-icon-btn" aria-label="打开设置" title="打开设置">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>
-                </button>
             </div>
         </div>
     </header>
 
-    <!-- 历史记录面板 - 标题居中（w-80 max-w-[85vw] 兼容窄屏移动端） -->
+    <!-- 历史记录面板 -->
     <div id="historyPanel" class="history-panel fixed left-0 top-0 h-full w-80 max-w-[85vw] bg-[#111] border-r border-[#333] p-6 z-40 transform -translate-x-full transition-transform duration-300" aria-label="观看历史" aria-hidden="true">
         <div class="flex justify-between items-center mb-6">
                 <button onclick="toggleHistory()" class="close-btn">
@@ -53,94 +47,133 @@
                     </svg>
                 </button>
             <h3 class="text-xl font-bold gradient-text mx-auto">观看历史</h3>
-            <div class="w-4"></div> <!-- 添加一个占位元素以确保标题居中 -->
+            <div class="w-4"></div>
         </div>
         <div id="historyList" class="pb-4">
             <!-- 历史记录将在这里动态显示 -->
             <div class="text-center text-gray-500 py-8">暂无观看记录</div>
         </div>
         <div class="mt-4 text-center sticky bottom-0 pb-2 pt-2 bg-[#111]">
-            <button onclick="clearViewingHistory()" class="px-4 py-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white rounded-lg text-sm transition-all duration-300 shadow-md hover:shadow-lg">
-                清空历史记录
-            </button>
+            <button onclick="clearViewingHistory()" class="btn-danger w-full">清空历史记录</button>
         </div>
     </div>
 
-    <!-- 设置面板（w-80 max-w-[85vw] 兼容窄屏移动端） -->
-    <div id="settingsPanel" class="settings-panel fixed right-0 top-0 h-full w-80 max-w-[85vw] bg-[#111] border-l border-[#333] p-6 z-40 overflow-y-auto" aria-label="设置面板" aria-hidden="true">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-bold gradient-text">设置</h3>
-            <button onclick="toggleSettings()" class="close-btn">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-        </div>
-        <div class="space-y-5">
-            <!-- 数据源设置区域 -->
-            <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
-                <label class="block text-sm font-medium text-gray-400 mb-3 border-b border-[#333] pb-1">数据源设置</label>
-                
-                <!-- 批量操作按钮 -->
-                <div class="flex space-x-2 mb-3">
-                    <button onclick="selectAllAPIs(true)" class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white text-xs rounded">全选</button>
-                    <button onclick="selectAllAPIs(false)" class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white text-xs rounded">全不选</button>
-                    <button onclick="selectAllAPIs(true, true)" class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white text-xs rounded">全选普通资源</button>
+    <main class="home-main">
+        <!-- 第一行：搜索 -->
+        <div id="searchArea" class="hero-search">
+            <div class="search-box-glass">
+                <div class="search-input-wrap">
+                    <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"></path>
+                    </svg>
+                    <input type="text" id="searchInput" class="search-input" placeholder="搜索电影、剧集、综艺..." autocomplete="off" aria-label="视频搜索框" oninput="toggleClearButton()">
+                    <button id="clearSearchInput" class="search-clear hidden" onclick="clearSearchInput()" aria-label="清空搜索框" title="清空搜索框">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
                 </div>
-                
-                <!-- API选择区域 - 使用滚动区域 -->
+                <button onclick="search()" class="search-go-btn" aria-label="搜索按钮">搜索</button>
+            </div>
+            <div id="recentSearches" class="recent-searches" aria-label="最近搜索记录"></div>
+        </div>
+
+        <!-- 第二行：分类 tab（由 home.js 动态生成） -->
+        <nav id="catTabs" class="cat-tabs-row" aria-label="视频分类"></nav>
+
+        <!-- 视图① 影视 -->
+        <section id="view-home" class="app-view active">
+            <div id="homeFeed">
+                <!-- home.js 渲染：正在热映横滑条 + 最新更新网格 -->
+            </div>
+
+            <!-- 搜索结果 -->
+            <section id="resultsArea" class="section results-section hidden">
+                <div class="section-inner">
+                    <div class="results-head">
+                        <span class="results-count"><span id="searchResultsCount">0</span> 个结果</span>
+                    </div>
+                    <div id="results" class="results-grid"></div>
+                </div>
+            </section>
+        </section>
+
+        <!-- 视图② 源配置 -->
+        <section id="view-sources" class="app-view">
+            <!-- 数据源设置 -->
+            <div class="settings-card">
+                <label class="settings-card-title">数据源设置</label>
+                <div class="flex space-x-2 mb-3">
+                    <button onclick="selectAllAPIs(true)" class="btn-neutral">全选</button>
+                    <button onclick="selectAllAPIs(false)" class="btn-neutral">全不选</button>
+                    <button onclick="selectAllAPIs(true, true)" class="btn-neutral">全选普通资源</button>
+                </div>
                 <div class="max-h-40 overflow-y-auto bg-[#191919] p-2 rounded-lg mb-3">
                     <div id="apiCheckboxes">
                         <!-- 这里将动态插入API复选框 -->
                     </div>
                 </div>
-                
-                <!-- API信息显示 -->
                 <div class="text-xs text-gray-500 flex justify-between items-center">
                     <span>已选API数量：<span id="selectedApiCount" class="text-white">0</span></span>
                     <span id="siteStatus" class="ml-2"></span>
                 </div>
-
-                <!-- 数据源健康检测（Q2） -->
                 <div class="mt-3">
-                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="w-full px-2 py-1.5 bg-[#333] hover:bg-[#444] text-white text-xs rounded transition-colors">检测全部数据源</button>
+                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="btn-blue w-full">检测全部数据源</button>
                     <div id="sourceHealthList" class="mt-2 max-h-40 overflow-y-auto space-y-1 hidden" aria-live="polite"></div>
                 </div>
             </div>
 
-            <!-- 自定义API管理区域 -->
-            <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
+            <!-- 自定义 API 管理 -->
+            <div class="settings-card">
                 <div class="flex justify-between items-center mb-2">
-                    <label class="block text-sm font-medium text-gray-400 border-b border-[#333] w-full pb-1">自定义API</label>
-                    <button onclick="showAddCustomApiForm()" class="bg-[#333] hover:bg-[#444] text-white w-6 h-6 rounded-full text-center leading-none text-lg ml-1">+</button>
+                    <label class="settings-card-title">自定义API</label>
+                    <button onclick="showAddCustomApiForm()" class="btn-neutral w-7 h-7 rounded-full text-lg leading-none p-0" aria-label="添加自定义API">+</button>
                 </div>
                 <div id="customApisList" class="max-h-32 overflow-y-auto mb-2">
                     <!-- 自定义API将显示在这里 -->
                 </div>
-                
-                <!-- 添加自定义API表单 (默认隐藏) -->
                 <div id="addCustomApiForm" class="hidden mt-2 p-2 bg-[#191919] rounded-lg">
                     <input type="text" id="customApiName" placeholder="API名称" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
                     <input type="text" id="customApiUrl" placeholder="https://abc.com" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
-                    <!-- 新增 detail 地址输入框 -->
                     <input type="text" id="customApiDetail" placeholder="detail地址（可选）" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
-                    <!-- 添加成人内容切换 -->
                     <div class="flex items-center mb-2">
                         <input type="checkbox" id="customApiIsAdult" class="form-checkbox h-4 w-4 text-pink-500 bg-[#222] border border-[#333]">
                         <label for="customApiIsAdult" class="ml-2 text-xs text-pink-400">黄色资源站</label>
                     </div>
                     <div class="flex space-x-2">
-                        <button onclick="addCustomApi()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs">添加</button>
-                        <button onclick="cancelAddCustomApi()" class="bg-[#444] hover:bg-[#555] text-white px-3 py-1 rounded text-xs">取消</button>
+                        <button onclick="addCustomApi()" class="btn-blue px-3 py-1 rounded text-xs">添加</button>
+                        <button onclick="cancelAddCustomApi()" class="btn-neutral px-3 py-1 rounded text-xs">取消</button>
                     </div>
                 </div>
             </div>
-            
-            <!-- 内容过滤设置区域 -->
-            <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
-                <label class="block text-sm font-medium text-gray-400 mb-3 border-b border-[#333] pb-1">功能开关</label>
-                
-                <!-- 黄色内容过滤开关 -->
+
+            <!-- 配置备份 -->
+            <div class="settings-card">
+                <label class="settings-card-title">配置备份</label>
+                <div class="space-y-2">
+                    <button onclick="importConfig()" class="btn-blue w-full">导入配置</button>
+                    <button onclick="exportConfig()" class="btn-blue w-full">导出配置</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 视图③ 我的 -->
+        <section id="view-mine" class="app-view">
+            <!-- 观看历史 -->
+            <div class="settings-card">
+                <label class="settings-card-title">观看记录</label>
+                <button onclick="toggleHistory(event)" class="btn-neutral w-full flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    打开观看历史
+                </button>
+            </div>
+
+            <!-- 功能开关（黄色过滤块保持原嵌套结构，checkAdultAPIsSelected 依赖它） -->
+            <div class="settings-card">
+                <label class="settings-card-title">功能开关</label>
+
                 <div class="flex flex-col mb-3 pb-3 border-b border-[#222] relative">
                     <div class="flex items-center justify-between">
                         <div>
@@ -155,8 +188,7 @@
                     </div>
                     <!-- 警告提示将在这里动态插入 -->
                 </div>
-                
-                <!-- 广告过滤开关 -->
+
                 <div class="flex items-center justify-between mb-3 pb-3 border-b border-[#222]">
                     <div>
                         <label class="text-sm font-medium text-gray-400">分片广告过滤</label>
@@ -168,8 +200,7 @@
                         <div class="toggle-dot absolute w-5 h-5 bg-white rounded-full top-0.5 left-0.5 transition-transform duration-300 ease-in-out"></div>
                     </div>
                 </div>
-                
-                <!-- 豆瓣热门开关 -->
+
                 <div class="flex items-center justify-between">
                     <div>
                         <label class="text-sm font-medium text-gray-400">豆瓣热门推荐</label>
@@ -183,88 +214,14 @@
                 </div>
             </div>
 
-            <!-- 一般功能区域 -->
-            <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
-                <label class="block text-sm font-medium text-gray-400 mb-3 border-b border-[#333] pb-1">一般功能</label>
-                <button onclick="importConfig()" class="px-4 py-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white rounded-lg text-sm transition-all duration-300 shadow-md hover:shadow-lg mb-2">导入配置</button>
-                <button onclick="exportConfig()" class="px-4 py-2 mb-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white rounded-lg text-sm transition-all duration-300 shadow-md hover:shadow-lg">导出配置</button>
-                <button onclick="clearLocalStorage()" class="px-4 py-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white rounded-lg text-sm transition-all duration-300 shadow-md hover:shadow-lg">清除Cookie</button>
-            </div>
-        </div>
-    </div>
-
-    <main class="home-main">
-        <section class="hero">
-            <div class="hero-glow" aria-hidden="true"></div>
-            <h1 class="hero-title gradient-text">LibreTV</h1>
-            <p class="hero-subtitle">自由观影，畅享精彩</p>
-            
-
-            <!-- 搜索区 -->
-            <div id="searchArea" class="hero-search">
-                <div class="search-box-glass">
-                    <button onclick="resetToHome()" class="search-home-btn" aria-label="返回首页" title="返回首页">首页</button>
-                    <div class="search-input-wrap">
-                        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"></path>
-                        </svg>
-                        <input type="text" id="searchInput" class="search-input" placeholder="搜索电影、剧集、综艺..." autocomplete="off" aria-label="视频搜索框" oninput="toggleClearButton()">
-                        <button id="clearSearchInput" class="search-clear hidden" onclick="clearSearchInput()" aria-label="清空搜索框" title="清空搜索框">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <button onclick="search()" class="search-go-btn" aria-label="搜索按钮">搜索</button>
+            <!-- 其他 -->
+            <div class="settings-card">
+                <label class="settings-card-title">其他</label>
+                <div class="space-y-2">
+                    <button onclick="clearLocalStorage()" class="btn-danger w-full">清除Cookie</button>
+                    <a href="about.html" class="btn-neutral w-full flex items-center justify-center">关于我们</a>
+                    <button onclick="showDisclaimer()" class="btn-neutral w-full">免责声明</button>
                 </div>
-
-                <div id="recentSearches" class="recent-searches" aria-label="最近搜索记录"></div>
-
-                <!-- 热门分类快捷标签 -->
-                <div class="hot-categories" id="hotCategories" aria-label="热门分类">
-                    <span class="hot-categories-label">热门</span>
-                    <button class="cat-chip" onclick="selectHotCategory('movie', '热门')">电影</button>
-                    <button class="cat-chip" onclick="selectHotCategory('tv', '国产剧')">电视剧</button>
-                    <button class="cat-chip" onclick="selectHotCategory('tv', '综艺')">综艺</button>
-                    <button class="cat-chip" onclick="selectHotCategory('tv', '日本动画')">动漫</button>
-                    <button class="cat-chip" onclick="selectHotCategory('tv', '纪录片')">纪录片</button>
-                    <button class="cat-chip" onclick="selectHotCategory('movie', '豆瓣高分')">高分</button>
-                </div>
-            </div>
-        </section>
-            
-        <!-- 豆瓣热门推荐区域 -->
-        <section id="doubanArea" class="section douban-section hidden">
-            <div class="section-inner">
-                <div class="section-head">
-                    <div class="flex items-center">
-                        <h2 class="section-title">🔥 豆瓣热门</h2>
-                        <div class="douban-switch">
-                            <button id="douban-movie-toggle" class="douban-switch-btn bg-pink-600 text-white">电影</button>
-                            <button id="douban-tv-toggle" class="douban-switch-btn text-gray-300">电视剧</button>
-                        </div>
-                    </div>
-                    <button id="douban-refresh" class="refresh-btn">
-                        <span>换一批</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="overflow-x-auto pb-2">
-                    <div id="douban-tags" class="douban-tags-row"></div>
-                </div>
-                <div id="douban-results" class="douban-grid"></div>
-            </div>
-        </section>
-            
-        <!-- 搜索结果 -->
-        <section id="resultsArea" class="section results-section hidden">
-            <div class="section-inner">
-                <div class="results-head">
-                    <span class="results-count"><span id="searchResultsCount">0</span> 个结果</span>
-                </div>
-                <div id="results" class="results-grid"></div>
             </div>
         </section>
     </main>
@@ -282,7 +239,7 @@
                     </div>
                     <p class="text-gray-500 text-sm mt-2 text-center md:text-left">© 2025 LibreTV - 自由观影，畅享精彩</p>
                 </div>
-                
+
                 <div class="text-center md:text-right">
                     <p class="text-gray-500 text-sm max-w-md">
                         免责声明：本站仅为视频搜索工具，不存储、上传或分发任何视频内容。
@@ -298,7 +255,30 @@
         </div>
     </footer>
 
-    <!-- 详情模态框（p-4 sm:p-8 兼容移动端内边距） -->
+    <!-- 底部导航：影视 / 源配置 / 我的 -->
+    <nav id="tabbar" class="tabbar" aria-label="底部导航">
+        <button class="tabbar-btn active" data-view="view-home" aria-label="影视">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+            <span>影视</span>
+        </button>
+        <button class="tabbar-btn" data-view="view-sources" aria-label="源配置">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <span>源配置</span>
+        </button>
+        <button class="tabbar-btn" data-view="view-mine" aria-label="我的">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+            <span>我的</span>
+        </button>
+    </nav>
+
+    <!-- 详情模态框 -->
     <div id="modal" class="fixed inset-0 bg-black/95 hidden flex items-center justify-center transition-opacity duration-300 z-40">
         <div class="bg-[#111] p-4 sm:p-8 rounded-lg w-11/12 max-w-4xl border border-[#333] max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 flex-none">
@@ -352,7 +332,7 @@
                 </p>
             </div>
             <div class="mt-6 flex justify-center">
-                <button id="acceptDisclaimerBtn" class="px-6 py-3 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300">
+                <button id="acceptDisclaimerBtn" class="btn-blue px-6 py-3 font-semibold rounded-lg hover:shadow-lg transition-all duration-300">
                     我已了解并接受
                 </button>
             </div>
@@ -403,6 +383,7 @@
     <script src="js/password.js"></script>
     <script src="js/search.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/home.js"></script>
 
     <!-- PWA 注册 -->
     <script src="js/pwa-register.js"></script>
@@ -411,7 +392,7 @@
     <script>
         // 创建全局环境变量对象
         window.__ENV__ = window.__ENV__ || {};
-        
+
         // 注入服务器端环境变量 (将由服务器端替换)
         // PASSWORD 变量将在这里被服务器端注入
         window.__ENV__.PASSWORD = "{{PASSWORD}}";

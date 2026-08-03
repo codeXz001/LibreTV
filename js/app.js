@@ -1,7 +1,7 @@
 // 全局变量
-// 默认选中源：仅选择实测支持关键词搜索且可用的源
-// （tyyszy/dbzy 不支持 wd 搜索、wolong 已失效，均已移出默认列表）
-let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["ffzy","jszy","lzzy","wujin"]'); // 默认选中资源
+// 默认选中源：短剧+4K优先组合
+// zuidapi(最大资源-4K强)、wujin(无尽-短剧645)、piaoling(飘零-短剧614)、bfzy(暴风-短剧515)、ffzy(非凡-短剧500)
+let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["zuidapi","wujin","piaoling","bfzy","ffzy"]'); // 默认选中资源
 let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
 // 添加当前播放的集数索引
@@ -372,6 +372,9 @@ function updateSelectedAPIs() {
 
     // 更新显示选中的API数量
     updateSelectedApiCount();
+
+    // 数据源变更后清空首页推荐缓存（下次进入强制重新拉取）
+    if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
 }
 
 // 更新选中的API数量显示
@@ -651,6 +654,8 @@ function resetSearchArea() {
     document.getElementById('resultsArea').classList.add('hidden');
     // 退出搜索态：恢复 Hero 完整高度
     document.body.classList.remove('is-searching');
+    // 返回"影视"视图（结果区在该视图内）
+    if (typeof switchView === 'function') switchView('view-home');
 
     // 确保页脚正确显示，移除相对定位
     const footer = document.querySelector('.footer');
@@ -705,6 +710,10 @@ async function search() {
         console.warn('Password protection check failed:', error.message);
         return;
     }
+
+    // 搜索结果区位于"影视"视图内：从"源配置/我的"页发起搜索时自动切回
+    if (typeof switchView === 'function') switchView('view-home');
+
     const query = document.getElementById('searchInput').value.trim();
 
     if (!query) {
@@ -812,7 +821,8 @@ async function search() {
         // 处理搜索结果过滤：如果启用了黄色内容过滤，则过滤掉分类含有敏感内容的项目
         const yellowFilterEnabled = localStorage.getItem('yellowFilterEnabled') === 'true';
         if (yellowFilterEnabled) {
-            const banned = ['伦理片', '福利', '里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒', 'cosplay', '黑丝诱惑', '无码', '日本无码', '有码', '日本有码', 'SWAG', '网红主播', '色情片', '同性片', '福利视频', '福利片'];
+            // BANNED_TYPE_NAMES 定义于 config.js（搜索与首页推荐共用，单一事实源）
+            const banned = (typeof BANNED_TYPE_NAMES !== 'undefined') ? BANNED_TYPE_NAMES : [];
             allResults = allResults.filter(item => {
                 const typeName = item.type_name || '';
                 return !banned.some(keyword => typeName.includes(keyword));
@@ -898,6 +908,18 @@ function renderSearchResults(resultsDiv) {
 
     resultsDiv.insertAdjacentHTML('beforeend', html);
     searchRenderedCount += batch.length;
+
+    // 对本批海报图床域名补 dns-prefetch（图床与 API 域名不同源，无法静态枚举，运行时提示）
+    if (window.hintImageHosts) {
+        const picUrls = [];
+        for (const g of batch) {
+            if (!g || !g.items) continue;
+            for (const it of g.items) {
+                if (it && it.vod_pic) picUrls.push(it.vod_pic);
+            }
+        }
+        if (picUrls.length) window.hintImageHosts(picUrls);
+    }
 
     const remaining = searchAllResults.length - searchRenderedCount;
     if (remaining > 0) {
@@ -1456,7 +1478,8 @@ function showVideoPlayer(url) {
     }
     // 临时隐藏搜索结果和豆瓣区域，防止高度超出播放器而出现滚动条
     document.getElementById('resultsArea').classList.add('hidden');
-    document.getElementById('doubanArea').classList.add('hidden');
+    const doubanArea = document.getElementById('doubanArea');
+    if (doubanArea) doubanArea.classList.add('hidden');
     // 在框架中打开播放页面
     videoPlayerFrame = document.createElement('iframe');
     videoPlayerFrame.id = 'VideoPlayerFrame';
@@ -1481,7 +1504,8 @@ function closeVideoPlayer(home = false) {
         }
         // 如果启用豆瓣区域则显示豆瓣区域
         if (localStorage.getItem('doubanEnabled') === 'true') {
-            document.getElementById('doubanArea').classList.remove('hidden');
+            const doubanArea = document.getElementById('doubanArea');
+            if (doubanArea) doubanArea.classList.remove('hidden');
         }
     }
     if (home) {

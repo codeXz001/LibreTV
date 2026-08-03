@@ -87,10 +87,6 @@ const API_SITES = {
         api: 'https://iqiyizyapi.com/api.php/provide/vod',
         name: '爱奇艺资源',
     },
-    zuidazy: {
-        api: 'https://zuidazy.me/api.php/provide/vod',
-        name: '最大点播',
-    },
     modu: {
         api: 'https://caiji.moduapi.cc/api.php/provide/vod',
         name: '魔都动漫',
@@ -98,10 +94,6 @@ const API_SITES = {
     mdzy: {
         api: 'https://www.mdzyapi.com/api.php/provide/vod',
         name: '魔都资源',
-    },
-    ikun: {
-        api: 'https://ikunzyapi.com/api.php/provide/vod',
-        name: '爱坤资源',
     },
     // ===== 2026-08-03 第三批新增：4 个源逐站实测通过 =====
     zuidapi: {
@@ -112,14 +104,52 @@ const API_SITES = {
         api: 'https://api.apibdzy.com/api.php/provide/vod',
         name: '百度资源',
     },
-    lzzy2: {
-        api: 'https://cj.lzcaiji.com/api.php/provide/vod',
-        name: '量子资源备用',
-    },
     huya: {
         api: 'https://www.huyaapi.com/api.php/provide/vod/at/json',
         name: '虎牙资源',
     },
+    // ===== 2026-08-03 第四批新增：8 个源（scripts/probe-sources.mjs 实测）=====
+    // 验证标准比前几批更严：①搜索返回 code=1 且有结果 ②详情接口能取到真实 m3u8
+    // 播放地址 ③记录响应耗时。仅"可搜 + 可播"双通过的才纳入。
+    // 括号内为实测搜索响应耗时（单次，仅供参考，前端仍会动态测速排序）。
+    ffzy_m3u8: {
+        api: 'https://ffzy5.tv/api.php/provide/vod',
+        name: '非凡M3U8',            // 347ms，当前最快
+        detail: 'https://ffzy5.tv',
+    },
+    ruyi: {
+        api: 'https://cj.rycjapi.com/api.php/provide/vod',
+        name: '如意资源',            // 564ms
+    },
+    maoyan: {
+        api: 'https://api.maoyanapi.top/api.php/provide/vod',
+        name: '猫眼资源',            // 703ms
+    },
+    dyttzy: {
+        api: 'https://caiji.dyttzyapi.com/api.php/provide/vod',
+        name: '电影天堂',            // 918ms
+        detail: 'https://caiji.dyttzyapi.com',
+    },
+    lovedan: {
+        api: 'https://lovedan.net/api.php/provide/vod',
+        name: '艾旦影视',            // 2131ms，片源数量最多（同关键词 22 条）
+    },
+    jinying: {
+        api: 'https://jyzyapi.com/api.php/provide/vod',
+        name: '金鹰资源',            // 2738ms
+    },
+    xinlang: {
+        api: 'https://api.xinlangapi.com/xinlangapi.php/provide/vod',
+        name: '新浪资源',            // 3143ms，注意路径是 xinlangapi.php 而非 api.php
+    },
+    zy360bak: {
+        api: 'https://360zyzz.com/api.php/provide/vod',
+        name: '360备用',            // 5033ms，较慢，作为 360zy 的兜底
+    },
+    // ===== 2026-08-03 已移除（实测失效，DNS 解析失败 / 连接被拒，串行长超时复测仍不通）=====
+    // zuidazy  最大点播      https://zuidazy.me/api.php/provide/vod
+    // ikun     爱坤资源      https://ikunzyapi.com/api.php/provide/vod
+    // lzzy2    量子资源备用  https://cj.lzcaiji.com/api.php/provide/vod
 };
 
 // 定义合并方法
@@ -217,31 +247,85 @@ const CUSTOM_API_CONFIG = {
 // 隐藏内置黄色采集站API的变量
 const HIDE_BUILTIN_ADULT_APIS = false;
 
+// ===== 首页分类推荐配置 =====
+// tags 为该分类的候选采集站分类名（按序 fallback）：
+// 个别源对同一分类的命名不同（如动漫可能叫"日本动画"/"动画片"），按序尝试直到命中非空
+const HOME_CATEGORIES = [
+    { id: 'movie',   name: '电影',   tags: ['电影'] },
+    { id: 'tv',      name: '电视剧', tags: ['电视剧'] },
+    { id: 'anime',   name: '动漫',   tags: ['动漫', '日本动画', '动画片'] },
+    { id: 'variety', name: '综艺',   tags: ['综艺'] },
+];
+
+// 黄色内容过滤的分类黑名单（app.js 搜索与 home.js 首页推荐共用，单一事实源）
+const BANNED_TYPE_NAMES = ['伦理片', '福利', '里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒', 'cosplay', '黑丝诱惑', '无码', '日本无码', '有码', '日本有码', 'SWAG', '网红主播', '色情片', '同性片', '福利视频', '福利片'];
+
+// 首页推荐配置
+const HOME_CONFIG = {
+    cacheTTL: 5 * 60 * 1000,   // 分类结果缓存时间
+    pageSize: 24,              // 单页条数（与采集站默认一致）
+    hotStripLimit: 12,         // "正在热映"横滑条最多展示条数
+    concurrency: 4             // 聚合请求并发上限
+};
+
+// 暴露到全局
+window.HOME_CATEGORIES = HOME_CATEGORIES;
+window.BANNED_TYPE_NAMES = BANNED_TYPE_NAMES;
+window.HOME_CONFIG = HOME_CONFIG;
+
 // ===== 首屏预连接（preconnect / dns-prefetch）=====
-// 浏览器提前建立到资源站与豆瓣图床的连接，减少首屏图片与数据请求的握手延迟。
-// 在 API_SITES 定义后执行，动态收集域名；重复访问时去重。
+// 【2026-08-03 修正】原实现给每个资源站 API 域名都加 preconnect + dns-prefetch，实测证明是无效开销：
+//   1. 所有 API 请求都经由同源 /proxy/ 转发（见 js/api.js），浏览器【从不直连】资源站域名，
+//      27 个源会生成 54 个 link 标签，每个 preconnect 还会真实建立 TCP+TLS 连接并保持约 10s。
+//   2. 资源站的海报图床域名与 API 域名完全不同，静态枚举不到：
+//      ffzy5.tv -> tupian.ffeiimg.com、cj.rycjapi.com -> ps.ryzypics.com、
+//      caiji.dyttzyapi.com -> vod.dyttimage.com、bfzyapi.com -> img.bfzypic.com …
+//   3. 豆瓣封面真实图床是 img{1,2,3,9}.doubanio.com，而原来预连的是 movie.douban.com
+//      （豆瓣数据接口同样走 /proxy/），预连对象完全错位。
+// 现在只静态预连"确定会直连且高频"的豆瓣图床，其余图床域名由 hintImageHosts() 在渲染时动态提示。
+// 静态预连的图床域名（模块级，供 hintImageHosts 复用，避免重复预算）
+const PRECONNECT = [
+    'https://img1.doubanio.com',
+    'https://img2.doubanio.com',
+    'https://img3.doubanio.com',
+];
 (function preconnectResources() {
-    const hosts = new Set(['https://movie.douban.com']);
-    try {
-        Object.keys(API_SITES || {}).forEach(key => {
-            const api = API_SITES[key];
-            if (api && api.api) {
-                const origin = new URL(api.api).origin;
-                if (/^https?:$/.test(new URL(origin).protocol)) hosts.add(origin);
-            }
-        });
-    } catch (e) {
-        // 个别异常域名不影响整体
-    }
-    hosts.forEach(h => {
-        if (document.querySelector(`link[href="${h}"]`)) return;
+    // 豆瓣封面走 img1/2/3/9 轮询，取命中率最高的三个；首页开启豆瓣推荐时首屏即用。
+    PRECONNECT.forEach(h => {
+        if (document.querySelector(`link[rel="preconnect"][href="${h}"]`)) return;
         const pre = document.createElement('link');
         pre.rel = 'preconnect';
         pre.href = h;
+        pre.crossOrigin = 'anonymous';   // 图片为匿名跨域请求，不加则连接无法复用
         document.head.appendChild(pre);
-        const dns = document.createElement('link');
-        dns.rel = 'dns-prefetch';
-        dns.href = h;
-        document.head.appendChild(dns);
     });
 })();
+// 记录静态预连域名，hintImageHosts 会跳过它们（已 preconnect，再 dns-prefetch 纯属浪费预算）
+window.__preconnectedHosts = window.__preconnectedHosts || new Set(PRECONNECT);
+
+// ===== 运行时图片域名提示 =====
+// 渲染搜索结果 / 推荐列表后调用，对实际出现的图床域名补 dns-prefetch。
+// 只做 dns-prefetch（仅 DNS 解析，不占用连接，成本远低于 preconnect），并设全局上限，
+// 避免源数量增长后又退化成"几十个无效 link"。
+window.__hintedImageHosts = window.__hintedImageHosts || new Set();
+window.hintImageHosts = function hintImageHosts(urls, limit = 16) {
+    if (!Array.isArray(urls) || !urls.length) return;
+    const preconnected = window.__preconnectedHosts;
+    for (const u of urls) {
+        if (window.__hintedImageHosts.size >= limit) return;
+        if (!u || typeof u !== 'string' || !u.startsWith('http')) continue;
+        let origin;
+        try {
+            origin = new URL(u).origin;
+        } catch (e) {
+            continue;   // 个别脏数据不影响整体
+        }
+        if (preconnected && preconnected.has(origin)) continue;   // 已 preconnect，跳过
+        if (window.__hintedImageHosts.has(origin)) continue;
+        window.__hintedImageHosts.add(origin);
+        const dns = document.createElement('link');
+        dns.rel = 'dns-prefetch';
+        dns.href = origin;
+        document.head.appendChild(dns);
+    }
+};
