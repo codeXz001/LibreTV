@@ -195,9 +195,9 @@ button, .card-hover {
 .search-tag {
     background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
     color: var(--text-color);
-    padding: 0.5rem 1rem;
+    padding: 0.3rem 0.75rem;
     border-radius: 0.5rem;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     border: 1px solid var(--border-color);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }

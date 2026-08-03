@@ -546,6 +546,15 @@ function setupEventListeners() {
         });
     }
 
+    // F3：详情弹窗点遮罩关闭（移动端无 × 按钮也可取消；一次绑定）
+    const detailModal = document.getElementById('modal');
+    if (detailModal && !detailModal.dataset.overlayCloseBound) {
+        detailModal.dataset.overlayCloseBound = '1';
+        detailModal.addEventListener('click', function (e) {
+            if (e.target === detailModal) closeModal();
+        });
+    }
+
     // 阶段 3.1：剧集按钮事件委托（替代 onclick 模板字符串）
     // episodesGrid 在 showDetails 里动态创建，绑定到 modalContent 上
     document.addEventListener('click', function (e) {
@@ -1239,20 +1248,6 @@ async function showAggregatedDetails(key) {
     currentAggregatedItems = items;
     currentAggregateSourceIndex = 0;
 
-    // F1：把聚合组的多源信息写入 localStorage，供播放页换源联动复用
-    // （播放页 showSwitchResourceModal 优先读取，免去按标题重复搜索）
-    try {
-        localStorage.setItem('aggregatedSources', JSON.stringify(items.map(i => ({
-            source_code: i.source_code,
-            source_name: i.source_name,
-            vod_id: i.vod_id,
-            vod_name: i.vod_name,
-            vod_pic: i.vod_pic || ''
-        }))));
-    } catch (e) {
-        // 存储失败不影响主流程
-    }
-
     const modal = document.getElementById('modal');
     const modalTitle = document.getElementById('modalTitle');
     const modalContent = document.getElementById('modalContent');
@@ -1263,10 +1258,108 @@ async function showAggregatedDetails(key) {
     modalTitle.innerHTML = `<span class="break-words">${safeTitle}</span>`;
     currentVideoTitle = first.vod_name || '未知视频';
 
+    // 立即显示弹窗（先用原顺序渲染 tabs），后台测速完成后重排
     modalContent.innerHTML = renderSourceTabsHtml(items, 0) + `<div id="aggregateDetailBody"></div>`;
     modal.classList.remove('hidden');
+    const body = document.getElementById('aggregateDetailBody');
+    if (body) body.innerHTML = `<div class="text-center py-10 text-gray-400">正在检测各源响应速度...</div>`;
+
+    // ===== 多源按响应速度排序：速度快的源优先、默认选中 =====
+    // 并行发起各源详情请求测速：命中缓存立即完成；未命中 3s 超时兜底（排后）。
+    // 测速同时预热详情缓存，用户切换源时秒开。
+    const sortedItems = await measureAndSortSources(items);
+    currentAggregatedItems = sortedItems;
+    currentAggregateSourceIndex = 0;
+
+    // F1：写入聚合组（已按速度排序），供播放页换源联动复用
+    try {
+        localStorage.setItem('aggregatedSources', JSON.stringify(sortedItems.map(i => ({
+            source_code: i.source_code,
+            source_name: i.source_name,
+            vod_id: i.vod_id,
+            vod_name: i.vod_name,
+            vod_pic: i.vod_pic || ''
+        }))));
+    } catch (e) {
+        // 存储失败不影响主流程
+    }
+
+    // 按速度顺序重排源切换标签
+    const tabsEl = modalContent.querySelector('.source-tabs');
+    if (tabsEl) tabsEl.outerHTML = renderSourceTabsHtml(sortedItems, 0);
 
     await loadAggregateSource(0);
+}
+
+// 并行测速各源详情请求，按耗时升序返回（速度快的在前）
+async function measureAndSortSources(items) {
+    const SOURCE_SPEED_TIMEOUT = 3000;
+    const timed = [];
+    await Promise.all(items.map(async (it) => {
+        const t0 = performance.now();
+        try {
+            await Promise.race([
+                fetchDetailData(it.vod_id, it.source_code),
+                new Promise(r => setTimeout(r, SOURCE_SPEED_TIMEOUT))
+            ]);
+        } catch (e) {
+            // 测速失败按最慢处理
+        }
+        timed.push({ item: it, elapsed: performance.now() - t0 });
+    }));
+    timed.sort((a, b) => a.elapsed - b.elapsed);
+    return timed.map(t => t.item);
+}
+
+// Q2：检测全部内置数据源可用性（并发 4，wd=test 轻量请求，8s 超时）
+async function checkAllSources() {
+    const btn = document.getElementById('checkSourcesBtn');
+    const list = document.getElementById('sourceHealthList');
+    if (!list) return;
+    if (btn) btn.disabled = true;
+    list.classList.remove('hidden');
+    list.innerHTML = '<div class="text-xs text-gray-500 text-center py-1">正在检测...</div>';
+
+    const keys = Object.keys(API_SITES || {});
+    const results = [];
+    await mapLimit(keys, 4, async (key) => {
+        const site = API_SITES[key];
+        const t0 = performance.now();
+        let ok = false;
+        try {
+            const apiUrl = site.api + API_CONFIG.search.path + encodeURIComponent('测试');
+            const proxiedUrl = window.ProxyAuth?.addAuthToProxyUrl
+                ? await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(apiUrl))
+                : PROXY_URL + encodeURIComponent(apiUrl);
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 8000);
+            const resp = await fetch(proxiedUrl, {
+                headers: API_CONFIG.search.headers,
+                signal: controller.signal
+            });
+            clearTimeout(timer);
+            if (resp.ok) {
+                const data = await resp.json().catch(() => null);
+                ok = !!(data && (data.code === 1 || Array.isArray(data.list)));
+            }
+        } catch (e) {
+            ok = false;
+        }
+        results.push({ key, name: site.name, ok, elapsed: Math.round(performance.now() - t0) });
+    });
+
+    // 渲染：可用在前，按耗时升序
+    results.sort((a, b) => (a.ok === b.ok ? a.elapsed - b.elapsed : a.ok ? -1 : 1));
+    list.innerHTML = results.map(r => {
+        const safeName = (r.name || r.key).toString().replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `
+            <div class="flex justify-between items-center text-xs px-2 py-1 rounded ${r.ok ? 'bg-green-900/30' : 'bg-red-900/30'}">
+                <span class="text-gray-200 truncate">${safeName}</span>
+                <span class="flex-shrink-0 ${r.ok ? 'text-green-400' : 'text-red-400'}">${r.ok ? `可用 ${r.elapsed}ms` : '不可用'}</span>
+            </div>`;
+    }).join('');
+
+    if (btn) btn.disabled = false;
 }
 
 // 加载指定索引的资源源详情到聚合详情区

@@ -1649,7 +1649,16 @@ async function showSwitchResourceModal() {
     const modalTitle = document.getElementById('modalTitle');
     const modalContent = document.getElementById('modalContent');
 
-    modalTitle.innerHTML = `<span class="break-words">${currentVideoTitle}</span>`;
+    // 遮罩点击关闭（移动端无 × 按钮场景也可取消；一次绑定）
+    if (!modal.dataset.overlayCloseBound) {
+        modal.dataset.overlayCloseBound = '1';
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    // textContent 而非 innerHTML，避免标题（来自 URL 参数）注入
+    modalTitle.textContent = currentVideoTitle;
     modalContent.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;grid-column:1/-1;">正在加载资源列表...</div>';
     modal.classList.remove('hidden');
 
@@ -1714,6 +1723,17 @@ async function showSwitchResourceModal() {
             })
             allResults[opt.key] = result;
         }));
+    }
+
+    // 空态：没有任何可切换的资源时给出明确提示，避免空白弹窗
+    if (Object.keys(allResults).length === 0) {
+        modalContent.innerHTML = `
+            <div class="text-center py-12">
+                <div class="text-gray-400 text-lg mb-2">未找到可切换的资源</div>
+                <div class="text-gray-600 text-sm mb-6">可返回首页勾选其他资源源后重试，或检查网络连接</div>
+                <button onclick="closeModal()" class="px-5 py-2 bg-[#333] hover:bg-[#444] rounded-lg text-sm transition-colors">关闭</button>
+            </div>`;
+        return;
     }
 
     // 更新状态显示：开始速率测试

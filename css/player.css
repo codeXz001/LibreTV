@@ -387,6 +387,14 @@ input:checked + .slider:before {
     .player-container .flex-wrap {
         margin-bottom: 4px;
     }
+
+    /* 移动端返回按钮仅保留图标，隐藏文字，节省头部空间 */
+    .home-btn-text { display: none; }
+
+    /* 防止横向溢出 */
+    .player-header-fixed { overflow-x: hidden; }
+    .player-container { overflow-x: hidden; }
+    body { overflow-x: hidden; }
 }
 
 /* 隐藏用户名输入框 */

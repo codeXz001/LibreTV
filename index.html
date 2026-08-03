@@ -13,7 +13,8 @@
     <link rel="apple-touch-icon" href="image/logo-black.png">
     <link rel="manifest" href="manifest.json">
     
-    <script src="libs/tailwindcss.min.js"></script>
+    <!-- Tailwind 运行时（本地文件）：defer 避免阻塞首屏解析；Play CDN 通过 MutationObserver 捕获后续动态 class -->
+    <script src="libs/tailwindcss.min.js" defer></script>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/index.css">
 </head>
@@ -43,8 +44,8 @@
         </div>
     </header>
 
-    <!-- 历史记录面板 - 标题居中 -->
-    <div id="historyPanel" class="history-panel fixed left-0 top-0 h-full bg-[#111] border-r border-[#333] p-6 z-40 transform -translate-x-full transition-transform duration-300" aria-label="观看历史" aria-hidden="true">
+    <!-- 历史记录面板 - 标题居中（w-80 max-w-[85vw] 兼容窄屏移动端） -->
+    <div id="historyPanel" class="history-panel fixed left-0 top-0 h-full w-80 max-w-[85vw] bg-[#111] border-r border-[#333] p-6 z-40 transform -translate-x-full transition-transform duration-300" aria-label="观看历史" aria-hidden="true">
         <div class="flex justify-between items-center mb-6">
                 <button onclick="toggleHistory()" class="close-btn">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -65,8 +66,8 @@
         </div>
     </div>
 
-    <!-- 设置面板 -->
-    <div id="settingsPanel" class="settings-panel fixed right-0 top-0 h-full w-80 bg-[#111] border-l border-[#333] p-6 z-40 overflow-y-auto" aria-label="设置面板" aria-hidden="true">
+    <!-- 设置面板（w-80 max-w-[85vw] 兼容窄屏移动端） -->
+    <div id="settingsPanel" class="settings-panel fixed right-0 top-0 h-full w-80 max-w-[85vw] bg-[#111] border-l border-[#333] p-6 z-40 overflow-y-auto" aria-label="设置面板" aria-hidden="true">
         <div class="flex justify-between items-center mb-6">
             <h3 class="text-xl font-bold gradient-text">设置</h3>
             <button onclick="toggleSettings()" class="close-btn">
@@ -98,6 +99,12 @@
                 <div class="text-xs text-gray-500 flex justify-between items-center">
                     <span>已选API数量：<span id="selectedApiCount" class="text-white">0</span></span>
                     <span id="siteStatus" class="ml-2"></span>
+                </div>
+
+                <!-- 数据源健康检测（Q2） -->
+                <div class="mt-3">
+                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="w-full px-2 py-1.5 bg-[#333] hover:bg-[#444] text-white text-xs rounded transition-colors">检测全部数据源</button>
+                    <div id="sourceHealthList" class="mt-2 max-h-40 overflow-y-auto space-y-1 hidden" aria-live="polite"></div>
                 </div>
             </div>
 
@@ -291,9 +298,9 @@
         </div>
     </footer>
 
-    <!-- 详情模态框 -->
+    <!-- 详情模态框（p-4 sm:p-8 兼容移动端内边距） -->
     <div id="modal" class="fixed inset-0 bg-black/95 hidden flex items-center justify-center transition-opacity duration-300 z-40">
-        <div class="bg-[#111] p-8 rounded-lg w-11/12 max-w-4xl border border-[#333] max-h-[90vh] flex flex-col">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg w-11/12 max-w-4xl border border-[#333] max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 flex-none">
                 <h2 id="modalTitle" class="text-2xl font-bold gradient-text break-words pr-4 max-w-[80%]"></h2>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-white text-2xl transition-colors flex-shrink-0">&times;</button>
@@ -307,7 +314,7 @@
 
     <!-- 密码验证弹窗 -->
     <div id="passwordModal" class="fixed inset-0 bg-black/95 hidden items-center justify-center z-[65] transition-opacity duration-300">
-        <div class="bg-[#111] p-8 rounded-lg w-11/12 max-w-md border border-[#333] max-h-[90vh] flex flex-col">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg w-11/12 max-w-md border border-[#333] max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 flex-none">
                 <h2 class="text-2xl font-bold gradient-text">访问验证</h2>
             </div>
@@ -328,7 +335,7 @@
 
     <!-- 版权声明弹窗 -->
     <div id="disclaimerModal" class="fixed inset-0 bg-black/90 hidden items-center justify-center z-[60]">
-        <div class="bg-[#111] p-8 rounded-lg border border-[#333] w-11/12 max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg border border-[#333] w-11/12 max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 class="text-2xl font-bold gradient-text mb-6 text-center">使用声明</h2>
             <div class="text-gray-300 space-y-4">
                 <p>
@@ -359,7 +366,7 @@
 
     <!-- 添加 loading 提示框 -->
     <div id="loading" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
-        <div class="bg-[#111] p-8 rounded-lg border border-[#333] flex items-center space-x-4">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg border border-[#333] flex items-center space-x-4">
             <div class="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
             <p class="text-white text-lg">加载中...</p>
         </div>

@@ -225,13 +225,13 @@ function renderSearchHistory() {
         return;
     }
 
-    // 创建一个包含标题和清除按钮的行
+    // 创建一个包含标题和清除按钮的行（紧凑展示，不占太多首屏空间）
     historyContainer.innerHTML = `
-        <div class="flex justify-between items-center w-full mb-2">
-            <div class="text-gray-500">最近搜索:</div>
-            <button id="clearHistoryBtn" class="text-gray-500 hover:text-white transition-colors"
+        <div class="flex justify-between items-center w-full mb-1">
+            <div class="text-gray-500 text-xs">最近搜索</div>
+            <button id="clearHistoryBtn" class="text-gray-500 hover:text-white transition-colors text-xs"
                     onclick="clearSearchHistory()" aria-label="清除搜索历史">
-                清除搜索历史
+                清除
             </button>
         </div>
     `;

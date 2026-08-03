@@ -11,8 +11,9 @@
     <link rel="apple-touch-icon" href="image/logo-black.png">
     <link rel="manifest" href="manifest.json">
 
-    <script src="libs/tailwindcss.min.js"></script>
-    <script src="js/version-check.js"></script>
+    <!-- Tailwind 运行时（本地文件）：defer 避免阻塞首屏解析；Play CDN 通过 MutationObserver 捕获后续动态 class -->
+    <script src="libs/tailwindcss.min.js" defer></script>
+    <script src="js/version-check.js" defer></script>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/player.css">
     
@@ -42,7 +43,7 @@
 
     <!-- 密码验证弹窗 -->
     <div id="passwordModal" class="fixed inset-0 bg-black/95 hidden items-center justify-center z-[65] transition-opacity duration-300">
-        <div class="bg-[#111] p-8 rounded-lg w-11/12 max-w-md border border-[#333] max-h-[90vh] flex flex-col">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg w-11/12 max-w-md border border-[#333] max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 flex-none">
                 <h2 class="text-2xl font-bold gradient-text">访问验证</h2>
             </div>
@@ -194,9 +195,9 @@
         </div>
     </footer>
 
-    <!-- 换源模态框 -->
+    <!-- 换源模态框（p-4 sm:p-8 兼容移动端；id="modalOverlay" 供遮罩点击关闭） -->
     <div id="modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center transition-opacity duration-300 z-[10000]">
-        <div class="bg-[#111] p-8 rounded-lg w-11/12 max-w-4xl border border-[#333] max-h-[90vh] flex flex-col">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg w-11/12 max-w-4xl border border-[#333] max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 flex-none">
                 <h2 id="modalTitle" class="text-2xl font-bold gradient-text break-words pr-4 max-w-[80%]"></h2>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-white text-2xl transition-colors flex-shrink-0">&times;</button>
@@ -210,7 +211,7 @@
 
     <!-- 添加 loading 提示框 -->
     <div id="loading" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[10001]">
-        <div class="bg-[#111] p-8 rounded-lg border border-[#333] flex items-center space-x-4">
+        <div class="bg-[#111] p-4 sm:p-8 rounded-lg border border-[#333] flex items-center space-x-4">
             <div class="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
             <p class="text-white text-lg">加载中...</p>
         </div>
