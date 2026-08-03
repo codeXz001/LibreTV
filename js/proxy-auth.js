@@ -34,9 +34,12 @@ async function getPasswordHash() {
     const userPassword = localStorage.getItem('userPassword');
     if (userPassword) {
         try {
-            // 动态导入 sha256 函数
-            const { sha256 } = await import('./sha256.js');
-            const hash = await sha256(userPassword);
+            // 使用页面已加载的 js-sha256（libs/sha256.min.js → window._jsSha256）
+            const sha256Fn = window._jsSha256 || window.sha256;
+            if (typeof sha256Fn !== 'function') {
+                throw new Error('sha256 实现不可用');
+            }
+            const hash = await sha256Fn(userPassword);
             localStorage.setItem('proxyAuthHash', hash);
             cachedPasswordHash = hash;
             return hash;

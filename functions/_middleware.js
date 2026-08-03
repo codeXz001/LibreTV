@@ -16,8 +16,23 @@ export async function onRequest(context) {
   const passwordHash = password ? await sha256Hex(password) : '';
   const modified = injectPasswordHash(html, passwordHash);
 
+  const headers = new Headers(response.headers);
+  // 宽松 CSP（与 server.mjs 一致，防御纵深）
+  headers.set(
+    'Content-Security-Policy',
+    "default-src 'self' data: https: http:; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https: http: blob:; " +
+    "media-src 'self' https: http: blob:; " +
+    "connect-src 'self' https: http:; " +
+    "frame-src 'self' https: http:; " +
+    "font-src 'self' data:; " +
+    "worker-src 'self' blob:;"
+  );
+
   return new Response(modified, {
-    headers: response.headers,
+    headers,
     status: response.status,
     statusText: response.statusText,
   });

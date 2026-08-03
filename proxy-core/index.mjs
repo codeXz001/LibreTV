@@ -26,4 +26,4 @@ export {
   DEFAULT_CORS_ALLOW_ALL,
 } from './cors.mjs';
 export { parseUserAgents, randomUserAgent, DEFAULT_USER_AGENTS } from './ua.mjs';
-export { safeFetchText } from './safe-fetch.mjs';
+export { safeFetchText, safeFetchBinary, isImageUrl } from './safe-fetch.mjs';

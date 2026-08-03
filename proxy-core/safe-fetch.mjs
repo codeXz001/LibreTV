@@ -75,3 +75,53 @@ export async function safeFetchText(url, opts = {}) {
     status,
   };
 }
+
+/**
+ * fetch 并以二进制（ArrayBuffer）形式返回响应体。
+ * 用于图片/字体等二进制资源：不做 UTF-8 文本解码，避免字节被损坏。
+ * 大小限制逻辑与 safeFetchText 一致。
+ *
+ * @param {string} url
+ * @param {object} [opts]
+ * @returns {Promise<{buffer: ArrayBuffer, contentType: string, responseHeaders: Headers, status: number}>}
+ */
+export async function safeFetchBinary(url, opts = {}) {
+  const maxBytes = opts.maxBytes || DEFAULT_MAX_RESPONSE_BYTES;
+  const allowNonOk = opts.allowNonOk ?? false;
+  const init = opts.fetchInit || {};
+
+  const response = await fetch(url, init);
+  const status = response.status;
+
+  if (!allowNonOk && !response.ok) {
+    let preview = '';
+    try { preview = new TextDecoder('utf-8').decode((await response.arrayBuffer()).slice(0, 200)); } catch { /* ignore */ }
+    const err = new Error(`HTTP error ${status}: ${response.statusText}. URL: ${url}. Body: ${preview}`);
+    err.status = status;
+    throw err;
+  }
+
+  const check = checkContentLength(response.headers, maxBytes);
+  if (!check.ok && check.length > 0) {
+    throw new Error(`Response too large: Content-Length ${check.length} bytes exceeds limit ${maxBytes}`);
+  }
+
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > maxBytes) {
+    throw new Error(`Response body exceeded ${maxBytes} bytes`);
+  }
+
+  return {
+    buffer,
+    contentType: response.headers.get('content-type') || 'application/octet-stream',
+    responseHeaders: response.headers,
+    status,
+  };
+}
+
+// 通过扩展名判断目标 URL 是否为图片（用于代理走二进制透传快速通道）
+const IMAGE_EXT_RE = /\.(jpe?g|png|gif|webp|avif|bmp|svg|ico)(\?|#|$)/i;
+export function isImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return IMAGE_EXT_RE.test(url);
+}

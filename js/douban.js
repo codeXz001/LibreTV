@@ -107,8 +107,15 @@ function initDouban() {
     setupDoubanRefreshBtn();
     
     // 初始加载热门内容
+    // 深度优化：延迟到浏览器空闲时段再拉取，避免与首屏关键资源争抢带宽，
+    // 优先保证搜索框、Logo、基础样式快速呈现。
     if (localStorage.getItem('doubanEnabled') === 'true') {
-        renderRecommend(doubanCurrentTag, doubanPageSize, doubanPageStart);
+        const loadInitialRecommend = () => renderRecommend(doubanCurrentTag, doubanPageSize, doubanPageStart);
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(loadInitialRecommend, { timeout: 2500 });
+        } else {
+            setTimeout(loadInitialRecommend, 400);
+        }
     }
 }
 
@@ -133,27 +140,8 @@ function updateDoubanVisibility() {
     }
 }
 
-// 只填充搜索框，不执行搜索，让用户自主决定搜索时机
-function fillSearchInput(title) {
-    if (!title) return;
-    
-    // 安全处理标题，防止XSS
-    const safeTitle = title
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    
-    const input = document.getElementById('searchInput');
-    if (input) {
-        input.value = safeTitle;
-        
-        // 聚焦搜索框，便于用户立即使用键盘操作
-        input.focus();
-        
-        // 显示一个提示，告知用户点击搜索按钮进行搜索
-        showToast('已填充搜索内容，点击搜索按钮开始搜索', 'info');
-    }
-}
+// 注：原 fillSearchInput（只填充不搜索）已删除——全库无任何引用，属旧实现遗留。
+// 如需该行为可直接调用 fillAndSearch 或手动设置 input.value。
 
 // 填充搜索框并执行搜索
 function fillAndSearch(title) {
@@ -198,31 +186,8 @@ async function fillAndSearchWithDouban(title) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
     
-    // 确保豆瓣资源API被选中
-    if (typeof selectedAPIs !== 'undefined' && !selectedAPIs.includes('dbzy')) {
-        // 在设置中勾选豆瓣资源API复选框
-        const doubanCheckbox = document.querySelector('input[id="api_dbzy"]');
-        if (doubanCheckbox) {
-            doubanCheckbox.checked = true;
-            
-            // 触发updateSelectedAPIs函数以更新状态
-            if (typeof updateSelectedAPIs === 'function') {
-                updateSelectedAPIs();
-            } else {
-                // 如果函数不可用，则手动添加到selectedAPIs
-                selectedAPIs.push('dbzy');
-                localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
-                
-                // 更新选中API计数（如果有这个元素）
-                const countEl = document.getElementById('selectedAPICount');
-                if (countEl) {
-                    countEl.textContent = selectedAPIs.length;
-                }
-            }
-            
-            showToast('已自动选择豆瓣资源API', 'info');
-        }
-    }
+    // 注：原「自动选择豆瓣资源API(dbzy)」逻辑已移除——
+    // dbzy（https://dbzy.tv）实测返回 code:1002 禁止关键词搜索，已从 API_SITES 排除。
     
     // 填充搜索框并执行搜索
     const input = document.getElementById('searchInput');
@@ -441,7 +406,30 @@ function renderRecommend(tag, pageLimit, pageStart) {
         });
 }
 
+// —— 豆瓣 API 内存缓存（TTL 10 分钟）——
+// 首页反复刷新 / 切标签 / 换一批翻页时，同一 URL 的请求直接命中缓存，
+// 避免每次都经由 /proxy/ 请求豆瓣上游（豆瓣对高频请求并不友好）。
+const DOUBAN_CACHE_TTL = 10 * 60 * 1000;
+const DOUBAN_CACHE_MAX = 100; // 上限，防止长会话内存累积
+const doubanCacheMap = new Map();
+function getCachedDouban(url) {
+    const hit = doubanCacheMap.get(url);
+    if (hit && Date.now() - hit.ts < DOUBAN_CACHE_TTL) return hit.data;
+    return null;
+}
+function setCachedDouban(url, data) {
+    doubanCacheMap.set(url, { ts: Date.now(), data });
+    // 超出上限时淘汰最旧一条（FIFO）
+    if (doubanCacheMap.size > DOUBAN_CACHE_MAX) {
+        doubanCacheMap.delete(doubanCacheMap.keys().next().value);
+    }
+}
+
 async function fetchDoubanData(url) {
+    // 缓存命中直接返回（同一 tag/page 的推荐 10 分钟内有效）
+    const hit = getCachedDouban(url);
+    if (hit) return hit;
+
     // 添加超时控制
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
@@ -470,7 +458,9 @@ async function fetchDoubanData(url) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
         
-        return await response.json();
+        const data = await response.json();
+        setCachedDouban(url, data);
+        return data;
     } catch (err) {
         console.error("豆瓣 API 请求失败（直接代理）：", err);
         
@@ -488,7 +478,9 @@ async function fetchDoubanData(url) {
             
             // 解析原始内容
             if (data && data.contents) {
-                return JSON.parse(data.contents);
+                const parsed = JSON.parse(data.contents);
+                setCachedDouban(url, parsed);
+                return parsed;
             } else {
                 throw new Error("无法获取有效数据");
             }
@@ -528,20 +520,22 @@ function renderDoubanCards(data, container) {
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
             
-            // 处理图片URL
-            // 1. 直接使用豆瓣图片URL (添加no-referrer属性)
+            // 处理图片URL：直连 + 带鉴权代理回退 + 内联SVG兜底（见 ui.js handleImageError）
             const originalCoverUrl = item.cover;
-            
-            // 2. 也准备代理URL作为备选
-            const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
-            
+            const hasCover = originalCoverUrl && /^https?:\/\//i.test(originalCoverUrl);
+
             // 为不同设备优化卡片布局
             card.innerHTML = `
-                <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearchWithDouban('${safeTitle}')">
-                    <img src="${originalCoverUrl}" alt="${safeTitle}" 
+                <div class="lazy-img-wrap relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearchWithDouban('${safeTitle}')">
+                    ${hasCover ? `
+                    <img src="${IMG_TRANSPARENT}" data-src="${originalCoverUrl}" data-orig="${originalCoverUrl}" alt="${safeTitle}"
                         class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                        onerror="this.onerror=null; this.src='${proxiedCoverUrl}'; this.classList.add('object-contain');"
-                        loading="lazy" referrerpolicy="no-referrer">
+                        onerror="handleImageError(this)"
+                        referrerpolicy="no-referrer" decoding="async">
+                    ` : `
+                    <img src="${getPlaceholderImageSvg(safeTitle)}" alt="${safeTitle}"
+                        class="w-full h-full object-cover">
+                    `}
                     <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                     <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">
                         <span class="text-yellow-400">★</span> ${safeRate}
@@ -568,12 +562,58 @@ function renderDoubanCards(data, container) {
     // 清空并添加所有新元素
     container.innerHTML = "";
     container.appendChild(fragment);
+
+    // 注册渐进式懒加载（骨架屏 + 进入视口再加载真实图）
+    observeLazyImages(container);
 }
 
 // 重置到首页
 function resetToHome() {
     resetSearchArea();
     updateDoubanVisibility();
+}
+
+// 首页「热门分类」快捷入口：直接切换豆瓣影视类型 + 标签
+// type: 'movie' | 'tv'；tag: 目标标签，不存在时回退到「热门」
+function selectHotCategory(type, tag) {
+    // 豆瓣推荐未开启时退化为关键词搜索，保证按钮始终有响应
+    if (localStorage.getItem('doubanEnabled') !== 'true') {
+        if (typeof fillAndSearchWithDouban === 'function') {
+            fillAndSearchWithDouban(tag && tag !== '热门' ? tag : (type === 'movie' ? '电影' : '电视剧'));
+        }
+        return;
+    }
+
+    // 退出搜索态，回到推荐视图
+    if (typeof resetSearchArea === 'function') resetSearchArea();
+
+    const isMovie = type === 'movie';
+    const movieToggle = document.getElementById('douban-movie-toggle');
+    const tvToggle = document.getElementById('douban-tv-toggle');
+    if (movieToggle && tvToggle) {
+        const active = isMovie ? movieToggle : tvToggle;
+        const inactive = isMovie ? tvToggle : movieToggle;
+        active.classList.add('bg-pink-600', 'text-white');
+        active.classList.remove('text-gray-300');
+        inactive.classList.remove('bg-pink-600', 'text-white');
+        inactive.classList.add('text-gray-300');
+    }
+
+    doubanMovieTvCurrentSwitch = isMovie ? 'movie' : 'tv';
+
+    const tagPool = isMovie ? movieTags : tvTags;
+    doubanCurrentTag = (Array.isArray(tagPool) && tagPool.includes(tag)) ? tag : '热门';
+    doubanPageStart = 0;
+
+    renderDoubanTags(tagPool);
+    if (typeof setupDoubanRefreshBtn === 'function') setupDoubanRefreshBtn();
+    renderRecommend(doubanCurrentTag, doubanPageSize, doubanPageStart);
+
+    const doubanArea = document.getElementById('doubanArea');
+    if (doubanArea) {
+        doubanArea.classList.remove('hidden');
+        doubanArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 // 加载豆瓣首页内容

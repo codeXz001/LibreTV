@@ -12,6 +12,15 @@ LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供
 
 本项目基于 [bestK/tv](https://github.com/bestK/tv) 进行重构与增强。
 
+## ✨ 核心特性
+
+- **多源聚合搜索**：22 个实测可用的苹果 CMS 资源站，同一影片自动聚合为一张卡片，详情内可随时切换资源源
+- **图片三级回退**：直连 → 带鉴权代理 → 内联 SVG 占位，懒加载 + shimmer 骨架屏，保证任何网络环境都能出图
+- **播放体验**：HLS.js + ArtPlayer，广告分片过滤、进度记忆/续播、自动连播、键盘快捷键
+- **性能优化**：搜索结果分批渲染（60 条/批 + 加载更多）、并发限流与多级缓存（搜索/详情/豆瓣）、播放中转页 350ms 直达
+- **PWA**：Service Worker 运行时缓存（静态资源与封面 stale-while-revalidate、页面 network-first），二次访问秒开
+- **多端部署**：Node / Docker / Cloudflare Pages / Vercel / Netlify 五选一，前端零构建
+
 <details>
   <summary>点击查看项目截图</summary>
   <img src="https://github.com/user-attachments/assets/df485345-e83b-4564-adf7-0680be92d3c7" alt="项目截图" style="max-width:600px">
@@ -112,6 +121,9 @@ npm install
 
 # 启动开发服务器
 npm run dev
+
+# 全量 JS 语法检查（js/、proxy-core/、根目录 .js/.mjs）
+npm run check
 ```
 
 访问 `http://localhost:8080` 即可使用（端口可在.env文件中通过PORT变量修改）。
@@ -149,12 +161,12 @@ LibreTV 支持标准的苹果 CMS V10 API 格式。添加自定义 API 时需遵
 ## 🛠️ 技术栈
 
 - HTML5 + CSS3 + JavaScript (ES6+)
-- Tailwind CSS
+- Tailwind CSS（本地运行时版，非 CDN）
 - HLS.js 用于 HLS 流处理
-- DPlayer 视频播放器核心
+- ArtPlayer 视频播放器核心
 - Cloudflare/Vercel/Netlify Serverless Functions
-- 服务端 HLS 代理和处理技术
-- localStorage 本地存储
+- 服务端 HLS 代理和处理技术（`proxy-core/` 跨平台共享模块）
+- localStorage 本地存储 + Service Worker 运行时缓存
 
 ## ⚠️ 免责声明
 

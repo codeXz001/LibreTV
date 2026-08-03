@@ -56,6 +56,20 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  // 宽松 CSP（防御纵深）：允许内联脚本/样式（Tailwind 运行时 + 既有 onclick），
+  // 媒体/图片允许任意 http(s)（播放与封面来源多样），worker 允许 blob（HLS）。
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self' data: https: http:; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https: http: blob:; " +
+    "media-src 'self' https: http: blob:; " +
+    "connect-src 'self' https: http:; " +
+    "frame-src 'self' https: http:; " +
+    "font-src 'self' data:; " +
+    "worker-src 'self' blob:;"
+  );
   next();
 });
 
@@ -100,6 +114,30 @@ app.get('/s=:keyword', async (req, res) => {
 });
 
 // --- /proxy/:encodedUrl ---
+// --- 代理 API 请求限流（仅限非媒体类，避免误伤视频分片播放） ---
+// 媒体文件（m3u8/ts/mp4/图片等）不限流；API 搜索/详情类 60 秒窗口内每 IP 最多 60 次。
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX = 60;
+const MEDIA_EXT_RE = /\.(m3u8|ts|mp4|flv|m4s|mp3|aac|png|jpg|jpeg|webp|gif|svg|ico)$/i;
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  // 定期清理过期条目，防止 Map 无限增长
+  if (rateLimitMap.size > 10000) {
+    for (const [k, v] of rateLimitMap) {
+      if (now - v.windowStart > RATE_LIMIT_WINDOW) rateLimitMap.delete(k);
+    }
+  }
+  const rec = rateLimitMap.get(ip);
+  if (!rec || now - rec.windowStart > RATE_LIMIT_WINDOW) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 });
+    return false;
+  }
+  rec.count++;
+  return rec.count > RATE_LIMIT_MAX;
+}
+
 app.get('/proxy/:encodedUrl', async (req, res) => {
   try {
     // 阶段 2.1 / 2.3：单次鉴权，统一为「未设 PASSWORD = 无密码」
@@ -116,6 +154,19 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     }
 
     const targetUrl = decodeURIComponent(req.params.encodedUrl);
+
+    // 非媒体类代理请求限流（防刷 API；媒体分片不受限，避免误伤播放）
+    if (!MEDIA_EXT_RE.test(targetUrl)) {
+      const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
+        || req.socket?.remoteAddress
+        || 'unknown';
+      if (isRateLimited(ip)) {
+        return res.status(429).json({
+          success: false,
+          error: '请求过于频繁，请稍后再试',
+        });
+      }
+    }
 
     // 阶段 2.6：isValidUrl 由 proxy-core 提供，含 IPv6 防护
     if (!isValidUrl(targetUrl)) {
@@ -192,8 +243,17 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
   }
 });
 
+// 静态资源缓存策略：
+// - HTML 页面（watch.html / about.html 等，经静态托管）一律 no-cache，
+//   避免更新后用户仍拿到旧版页面；
+// - JS/CSS/图片等带指纹无关资源使用 1 天强缓存（与 config.cacheMaxAge 一致）。
 app.use(express.static(path.join(__dirname), {
   maxAge: config.cacheMaxAge,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html') || filePath.endsWith('.htm')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  },
 }));
 
 app.use((err, req, res, next) => {

@@ -1,0 +1,14 @@
+feat: major optimizations - aggregated search, multi-source switching, faster loading, 22 verified resource sites
+
+Summary of recent rounds:
+- Search results aggregated by normalized title; in-modal multi-source switching (source-tabs)
+- Batched rendering (60 items/batch) with load-more button; search timeout 15s->10s
+- Image lazy-load + 3-level fallback (direct -> authed proxy -> inline SVG) + shimmer skeletons
+- PWA runtime caching: stale-while-revalidate for static/assets/proxy-images, network-first for pages
+- Playback redirect page 2.8s -> 350ms; detail cache 5min; douban cache 10min (all size-capped)
+- 22 verified AppleCMS resource sites (hhzy/lzzy/jszy/wujin/hongniu/uku/360zy/piaoling/iqiyi/zuidazy/modu/mdzy/ikun/zuidapi/bdzy/lzzy2/huya); removed dead sources (tyyszy/dbzy/qiqi/maota); fixed customer_site bfzy override bug
+- Serverless proxies: binary image passthrough (safeFetchBinary/isImageUrl), cache headers for Vercel/Netlify
+- Security: CSP headers, /proxy/ API rate-limit (media excluded), private-segment IP fix (172.16-31), .env.example FILTERED_HEADERS sync
+- Ad filter reworked to URL-domain blacklist (default off); player dblclick dedup; progress save throttle 10s
+- Player source switching reuses aggregated group (localStorage aggregatedSources) instead of re-search
+- Added npm run check (scripts/check.js); docs synced; dead code removed

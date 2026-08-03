@@ -6,6 +6,30 @@
 
 ---
 
+## 📌 2026-08-03 状态更新（全面检查后）
+
+> 本报告为 2026-08-01 阶段 3.1 的总结。此后已完成多轮优化，关键变更如下（详细见当日工作日志）：
+
+**已完成（原"未完成项"已闭环）：**
+- ✅ 后端 4 套代理去重 → `proxy-core/`（auth/security/cors/m3u8/ua/safe-fetch）+ 各平台薄壳
+- ✅ `validateAuth` 重复调用修复；时间戳 NaN 防护（`proxy-core/auth.mjs`）
+- ✅ `isValidUrl` IPv6 防护（`proxy-core/security.mjs`），2026-08-03 进一步精确化 172.16/12 私有段
+- ✅ `.dockerignore` 已存在；`package.json` 已加 `npm run check`（`scripts/check.js`）
+- ✅ 广告过滤 `filterAdsFromM3U8` 缺陷已知（见下方遗留），2026-08-03 已评估为低风险维持现状或改域名黑名单
+- ✅ Service Worker 已从"仅注册"升级为运行时缓存（`service-worker.js`）
+- ✅ Serverless 静态资源缓存头（`vercel.json` / `netlify.toml`）
+
+**2026-08-03 新增能力：**
+- 搜索结果同片聚合 + 详情内多源切换（`aggregateSearchResults` / `source-tab`）
+- 搜索结果分批渲染（60 条/批 + 加载更多）
+- 图片懒加载 + 三级回退 + 内联 SVG 占位（`handleImageError`）
+- 22 个实测可用资源源（`js/config.js`）
+- 多级缓存：搜索 5min / 详情 5min / 豆瓣 10min（均带 size 上限）
+
+**遗留事项：** 详见 `C:\Users\Administrator\.workbuddy\plans\electric-vortex-lovelace.md`（性能/安全/部署/可维护性四维清单，Phase B/C 部分待执行）。
+
+---
+
 ## ✅ 已完成：阶段 3.1 - XSS onclick 修复
 
 ### 修复目标

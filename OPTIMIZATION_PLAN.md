@@ -8,6 +8,14 @@
 
 ---
 
+## 📌 2026-08-03 状态注记
+
+- 阶段 1（proxy-core 抽取）、阶段 2（鉴权/安全加固，含 NaN/IPv6）、阶段 3（XSS onclick 修复）**均已完成**。
+- 本清单中已打勾的条目无需重复执行；其余条目已合并进最新检查报告：
+  **`C:\Users\Administrator\.workbuddy\plans\electric-vortex-lovelace.md`**（性能/安全/部署/可维护性/体验/质量六维清单，含 Phase A/B/C 执行批次）。
+
+---
+
 ## 阶段 0 · 改动原则
 
 - 任何文件改动后**不**主动 `git add / commit`，由用户确认。

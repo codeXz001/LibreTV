@@ -251,29 +251,24 @@ function initializePageContent() {
     // 添加键盘快捷键事件监听
     document.addEventListener('keydown', handleKeyboardShortcuts);
 
-    // 添加页面离开事件监听，保存播放位置
-    window.addEventListener('beforeunload', saveCurrentProgress);
+    // 添加页面离开事件监听，保存播放位置（force 立即保存）
+    window.addEventListener('beforeunload', () => saveCurrentProgress(true));
 
-    // 新增：页面隐藏（切后台/切标签）时也保存
+    // 新增：页面隐藏（切后台/切标签）时也保存（force 立即保存）
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') {
-            saveCurrentProgress();
+            saveCurrentProgress(true);
         }
     });
 
-    // 视频暂停时也保存
+    // 视频暂停时也保存（force 立即保存）
     const waitForVideo = setInterval(() => {
         if (art && art.video) {
-            art.video.addEventListener('pause', saveCurrentProgress);
+            art.video.addEventListener('pause', () => saveCurrentProgress(true));
 
-            // 新增：播放进度变化时节流保存
-            let lastSave = 0;
+            // 播放进度变化时节流保存（内部 10s 节流，避免高频写 localStorage）
             art.video.addEventListener('timeupdate', function() {
-                const now = Date.now();
-                if (now - lastSave > 5000) { // 每5秒最多保存一次
-                    saveCurrentProgress();
-                    lastSave = now;
-                }
+                saveCurrentProgress();
             });
 
             clearInterval(waitForVideo);
@@ -729,10 +724,10 @@ function initPlayer(videoUrl) {
         }
     });
 
-    // 添加双击全屏支持
+    // 添加双击全屏支持（用 dataset 标记防重复绑定，切换视频时元素重建则自然重新绑定）
     art.on('video:playing', () => {
-        // 绑定双击事件到视频容器
-        if (art.video) {
+        if (art.video && !art.video.dataset.dblclickBound) {
+            art.video.dataset.dblclickBound = '1';
             art.video.addEventListener('dblclick', () => {
                 art.fullscreen = !art.fullscreen;
                 art.play();
@@ -783,23 +778,36 @@ class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
 }
 
 // 过滤可疑的广告内容
+// 2026-08-03 改进：不再删除 #EXT-X-DISCONTINUITY（会破坏正常流的码率切换/续播结构），
+// 改为按分段 URL 域名黑名单剔除广告分段（连同其前一行 EXTINF），其他行原样保留。
 function filterAdsFromM3U8(m3u8Content, strictMode = false) {
     if (!m3u8Content) return '';
 
-    // 按行分割M3U8内容
-    const lines = m3u8Content.split('\n');
-    const filteredLines = [];
+    // 广告域名/路径特征（命中即视为广告分段）
+    const adPatterns = [
+        /(?:^|[\/.])(?:ad|ads|adn|advert|adview|gg|gdt|adt)[0-9]*(?:[.\/])/i,
+        /(?:^|[\/.])(?:adsystem|adserver|adservice|advideo)[.\/]/i,
+        /(?:^|[\/.])(?:gdtimg|gdtv|ugdtimg)[.\/]/i,
+        /(?:^|[\/.])(?:v\.qq\.com[^\n]*advideo|t\.me[^\n]*ad)[^\n]*/i,
+    ];
 
+    const lines = m3u8Content.split('\n');
+    const out = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-
-        // 只过滤#EXT-X-DISCONTINUITY标识
-        if (!line.includes('#EXT-X-DISCONTINUITY')) {
-            filteredLines.push(line);
+        const trimmed = line.trim();
+        // 只对真正的分段 URL 做广告判定（http 开头或相对路径）
+        const isSegmentUrl = trimmed.startsWith('http') || trimmed.startsWith('/');
+        if (isSegmentUrl && adPatterns.some(p => p.test(trimmed))) {
+            // 广告分段：连带移除其前一行（#EXTINF）
+            if (out.length && out[out.length - 1].trim().startsWith('#EXTINF')) {
+                out.pop();
+            }
+            continue;
         }
+        out.push(line);
     }
-
-    return filteredLines.join('\n');
+    return out.join('\n');
 }
 
 
@@ -1238,11 +1246,19 @@ function startProgressSaveInterval() {
 }
 
 // 保存当前播放进度
-function saveCurrentProgress() {
+// 播放进度节流：常规保存至少间隔 10s；force=true 时（暂停/切后台/卸载）立即保存
+let lastProgressSaveTime = 0;
+const PROGRESS_SAVE_INTERVAL = 10000;
+
+function saveCurrentProgress(force = false) {
     if (!art || !art.video) return;
     const currentTime = art.video.currentTime;
     const duration = art.video.duration;
     if (!duration || currentTime < 1) return;
+
+    const now = Date.now();
+    if (!force && now - lastProgressSaveTime < PROGRESS_SAVE_INTERVAL) return;
+    lastProgressSaveTime = now;
 
     // 在localStorage中保存进度
     const progressKey = `videoProgress_${getVideoId()}`;
@@ -1605,6 +1621,25 @@ function formatSpeedDisplay(speedResult) {
     return `<span class="${className}">${icon} ${speed}ms${note}</span>`;
 }
 
+// 读取聚合组（app.js 聚合详情写入 localStorage 的同一影片多源列表），
+// 标题归一化匹配当前播放标题；不匹配或数据缺失时返回 null（回退标题搜索）。
+function getAggregatedSourcesForTitle(title) {
+    try {
+        const raw = localStorage.getItem('aggregatedSources');
+        if (!raw) return null;
+        const items = JSON.parse(raw);
+        if (!Array.isArray(items) || items.length === 0) return null;
+        const norm = (s) => String(s || '')
+            .toLowerCase()
+            .replace(/[\s\u3000()（）[\]【】《》·:：\-_]/g, '');
+        const titleNorm = norm(title);
+        const matched = items.some(it => norm(it.vod_name) === titleNorm);
+        return matched ? items : null;
+    } catch (e) {
+        return null;
+    }
+}
+
 async function showSwitchResourceModal() {
     const urlParams = new URLSearchParams(window.location.search);
     const currentSourceCode = urlParams.get('source');
@@ -1651,20 +1686,35 @@ async function showSwitchResourceModal() {
         return { key: curr, name: '未知资源' };
     });
     let allResults = {};
-    await Promise.all(resourceOptions.map(async (opt) => {
-        let queryResult = await searchByAPIAndKeyWord(opt.key, currentVideoTitle);
-        if (queryResult.length == 0) {
-            return 
-        }
-        // 优先取完全同名资源，否则默认取第一个
-        let result = queryResult[0]
-        queryResult.forEach((res) => {
-            if (res.vod_name == currentVideoTitle) {
-                result = res;
+
+    // F1：优先复用聚合组（app.js 聚合详情写入的同一影片多源），免去按标题重复搜索
+    const aggItems = getAggregatedSourcesForTitle(currentVideoTitle);
+    if (aggItems && aggItems.length > 0) {
+        aggItems.forEach(it => {
+            if (it.source_code && it.vod_id) {
+                allResults[it.source_code] = {
+                    vod_id: it.vod_id,
+                    vod_name: it.vod_name || currentVideoTitle,
+                    vod_pic: it.vod_pic || ''
+                };
             }
-        })
-        allResults[opt.key] = result;
-    }));
+        });
+    } else {
+        await Promise.all(resourceOptions.map(async (opt) => {
+            let queryResult = await searchByAPIAndKeyWord(opt.key, currentVideoTitle);
+            if (queryResult.length == 0) {
+                return 
+            }
+            // 优先取完全同名资源，否则默认取第一个
+            let result = queryResult[0]
+            queryResult.forEach((res) => {
+                if (res.vod_name == currentVideoTitle) {
+                    result = res;
+                }
+            })
+            allResults[opt.key] = result;
+        }));
+    }
 
     // 更新状态显示：开始速率测试
     modalContent.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;grid-column:1/-1;">正在测试各资源速率...</div>';

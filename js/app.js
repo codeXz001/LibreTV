@@ -1,5 +1,7 @@
 // 全局变量
-let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["tyyszy","ffzy","wolong","dbzy"]'); // 默认选中资源
+// 默认选中源：仅选择实测支持关键词搜索且可用的源
+// （tyyszy/dbzy 不支持 wd 搜索、wolong 已失效，均已移出默认列表）
+let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["ffzy","jszy","lzzy","wujin"]'); // 默认选中资源
 let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
 // 添加当前播放的集数索引
@@ -10,6 +12,25 @@ let currentEpisodes = [];
 let currentVideoTitle = '';
 // 全局变量用于倒序状态
 let episodesReversed = false;
+
+// —— 详情请求内存缓存（TTL 5 分钟）——
+// 同一视频在短时间内重复打开时，直接复用已获取的剧集数据，
+// 避免每次都通过 /proxy/ 重新请求上游详情接口。
+const DETAIL_CACHE_TTL = 5 * 60 * 1000;
+const DETAIL_CACHE_MAX = 100; // 上限，防止长会话内存累积
+const detailCacheMap = new Map();
+function getCachedDetail(key) {
+    const hit = detailCacheMap.get(key);
+    if (hit && Date.now() - hit.ts < DETAIL_CACHE_TTL) return hit.data;
+    return null;
+}
+function setCachedDetail(key, data) {
+    detailCacheMap.set(key, { ts: Date.now(), data });
+    // 超出上限时淘汰最旧一条（FIFO）
+    if (detailCacheMap.size > DETAIL_CACHE_MAX) {
+        detailCacheMap.delete(detailCacheMap.keys().next().value);
+    }
+}
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function () {
@@ -27,8 +48,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 设置默认API选择（如果是第一次加载）
     if (!localStorage.getItem('hasInitializedDefaults')) {
-        // 默认选中资源（只选真实可用的源）
-        selectedAPIs = ["tyyszy", "ffzy", "wolong", "dbzy"];
+        // 默认选中资源（只选真实可用且支持搜索的源）
+        selectedAPIs = ["ffzy", "jszy", "lzzy", "wujin"];
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
 
         // 默认选中过滤开关
@@ -511,6 +532,12 @@ function setupEventListeners() {
         resultsContainer.addEventListener('click', function (e) {
             const card = e.target.closest('.js-search-result');
             if (!card) return;
+            // 聚合卡片：进入多源切换详情
+            if (card.dataset.aggregateKey) {
+                showAggregatedDetails(card.dataset.aggregateKey);
+                return;
+            }
+            // 单源卡片（兼容旧路径）
             showDetails(
                 card.dataset.id || '',
                 card.dataset.name || '',
@@ -537,6 +564,13 @@ function setupEventListeners() {
             const source = toggleBtn.dataset.source || '';
             const vodId = toggleBtn.dataset.vodId || '';
             toggleEpisodeOrder(source, vodId);
+            return;
+        }
+        // 聚合详情：资源源切换标签
+        const srcTab = e.target.closest('.source-tab');
+        if (srcTab) {
+            const idx = parseInt(srcTab.dataset.sourceIndex || '0', 10);
+            loadAggregateSource(idx);
         }
     });
 
@@ -598,11 +632,16 @@ function resetSearchArea() {
     // 清理搜索结果
     document.getElementById('results').innerHTML = '';
     document.getElementById('searchInput').value = '';
+    // 清空分批渲染状态，避免旧结果残留
+    searchAllResults = [];
+    searchRenderedCount = 0;
 
     // 恢复搜索区域的样式
     document.getElementById('searchArea').classList.add('flex-1');
     document.getElementById('searchArea').classList.remove('mb-8');
     document.getElementById('resultsArea').classList.add('hidden');
+    // 退出搜索态：恢复 Hero 完整高度
+    document.body.classList.remove('is-searching');
 
     // 确保页脚正确显示，移除相对定位
     const footer = document.querySelector('.footer');
@@ -669,7 +708,13 @@ async function search() {
         return;
     }
 
-    showLoading();
+    // 搜索时用区域骨架屏替代全屏遮罩，减少打断感（结果区原地占位）
+    renderSearchSkeletons();
+    // 兜底超时保护：防止个别上游源长时间无响应拖住整个搜索
+    const searchTimeoutGuard = setTimeout(() => {
+        showToast('搜索耗时较长，已自动停止', 'warning');
+        hideLoading();
+    }, 45000);
 
     try {
         // 保存搜索历史
@@ -711,6 +756,8 @@ async function search() {
         document.getElementById('searchArea').classList.remove('flex-1');
         document.getElementById('searchArea').classList.add('mb-8');
         document.getElementById('resultsArea').classList.remove('hidden');
+        // 进入搜索态：收缩 Hero，让结果区上移到首屏
+        document.body.classList.add('is-searching');
 
         // 隐藏豆瓣推荐区域（如果存在）
         const doubanArea = document.getElementById('doubanArea');
@@ -763,84 +810,102 @@ async function search() {
             });
         }
 
-        // 添加XSS保护，使用textContent和属性转义
-        const safeResults = allResults.map(item => {
-            const safeId = item.vod_id ? item.vod_id.toString().replace(/[^\w-]/g, '') : '';
-            const safeName = (item.vod_name || '').toString()
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-            const sourceInfo = item.source_name ?
-                `<span class="bg-[#222] text-xs px-1.5 py-0.5 rounded-full">${item.source_name}</span>` : '';
-            const sourceCode = item.source_code || '';
+        // 聚合搜索结果：不同资源站返回的同一影片（按标题归一化）合并为一张卡片，
+        // 点击后可在各源之间切换查看/播放
+        allResults = aggregateSearchResults(allResults);
+        // 更新计数为聚合后的组数
+        if (searchResultsCount) {
+            searchResultsCount.textContent = allResults.length;
+        }
 
-            // 添加API URL属性，用于详情获取
-            const apiUrlAttr = item.api_url ?
-                `data-api-url="${item.api_url.replace(/"/g, '&quot;')}"` : '';
-
-            // 修改为水平卡片布局，图片在左侧，文本在右侧，并优化样式
-            const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
-
-            // 阶段 3.1：XSS 修复 —— 用 data-* 属性替代 onclick 模板字符串
-            // 之前 `onclick="showDetails('${safeId}','${safeName}','${sourceCode}')"`
-            // 里的 sourceCode 和 episode 来自外部接口，未严格转义，存在 XSS 注入面。
-            // 改用事件委托 + data-*，由容器上的 click 监听器读 dataset。
-            const safeApiUrl = item.api_url ? item.api_url.replace(/"/g, '&quot;') : '';
-            return `
-                <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full shadow-sm hover:shadow-md js-search-result"
-                     data-id="${safeId}"
-                     data-name="${safeName}"
-                     data-source="${sourceCode}"
-                     data-api-url="${safeApiUrl}">
-                    <div class="flex h-full">
-                        ${hasCover ? `
-                        <div class="relative flex-shrink-0 search-card-img-container">
-                            <img src="${item.vod_pic}" alt="${safeName}"
-                                 class="h-full w-full object-cover transition-transform hover:scale-110"
-                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');"
-                                 loading="lazy">
-                            <div class="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent"></div>
-                        </div>` : ''}
-
-                        <div class="p-2 flex flex-col flex-grow">
-                            <div class="flex-grow">
-                                <h3 class="font-semibold mb-2 break-words line-clamp-2 ${hasCover ? '' : 'text-center'}" title="${safeName}">${safeName}</h3>
-
-                                <div class="flex flex-wrap ${hasCover ? '' : 'justify-center'} gap-1 mb-2">
-                                    ${(item.type_name || '').toString().replace(/</g, '&lt;') ?
-                    `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-blue-500 text-blue-300">
-                                          ${(item.type_name || '').toString().replace(/</g, '&lt;')}
-                                      </span>` : ''}
-                                    ${(item.vod_year || '') ?
-                    `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-purple-500 text-purple-300">
-                                          ${item.vod_year}
-                                      </span>` : ''}
-                                </div>
-                                <p class="text-gray-400 line-clamp-2 overflow-hidden ${hasCover ? '' : 'text-center'} mb-2">
-                                    ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
-                                </p>
-                            </div>
-
-                            <div class="flex justify-between items-center mt-1 pt-1 border-t border-gray-800">
-                                ${sourceInfo ? `<div>${sourceInfo}</div>` : '<div></div>'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        resultsDiv.innerHTML = safeResults;
+        // 分批渲染搜索结果（避免一次性渲染数千条 DOM 导致卡顿）
+        resultsDiv.innerHTML = '';
+        searchAllResults = allResults;
+        searchRenderedCount = 0;
+        renderSearchResults(resultsDiv);
     } catch (error) {
         console.error('搜索错误:', error);
-        if (error.name === 'AbortError') {
-            showToast('搜索请求超时，请检查网络连接', 'error');
-        } else {
-            showToast('搜索请求失败，请稍后重试', 'error');
+        const failMsg = error.name === 'AbortError'
+            ? '搜索请求超时，请检查网络连接'
+            : '搜索请求失败，请稍后重试';
+        showToast(failMsg, 'error');
+        // 搜索失败时清掉骨架，给出空态提示，避免骨架残留
+        const resultsDiv = document.getElementById('results');
+        if (resultsDiv) {
+            resultsDiv.innerHTML = `
+                <div class="col-span-full text-center py-16">
+                    <svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 class="mt-2 text-lg font-medium text-gray-400">搜索失败</h3>
+                    <p class="mt-1 text-sm text-gray-500">${failMsg}</p>
+                </div>`;
         }
     } finally {
+        clearTimeout(searchTimeoutGuard);
         hideLoading();
     }
+}
+
+// 渲染搜索结果区骨架屏（搜索进行中原地占位，结果返回后整体替换）
+function renderSearchSkeletons() {
+    const resultsDiv = document.getElementById('results');
+    const resultsArea = document.getElementById('resultsArea');
+    const countEl = document.getElementById('searchResultsCount');
+    if (resultsArea) resultsArea.classList.remove('hidden');
+    document.body.classList.add('is-searching');
+    if (countEl) countEl.textContent = '…';
+    if (resultsDiv) {
+        resultsDiv.innerHTML = Array.from({ length: 12 }, () => `
+            <div class="skeleton-card bg-[#141414] rounded-lg overflow-hidden">
+                <div class="skeleton-img shimmer"></div>
+                <div class="p-3 space-y-2">
+                    <div class="skeleton-line shimmer" style="width:70%"></div>
+                    <div class="skeleton-line shimmer" style="width:45%"></div>
+                </div>
+            </div>`).join('');
+    }
+}
+
+// ================= 搜索结果分批渲染 =================
+// 搜索可能返回数千条结果，一次性渲染会卡顿主线程。
+// 改为每批 SEARCH_BATCH_SIZE 条 + 「加载更多」按钮，滚动/点击分批展示。
+let searchAllResults = [];
+let searchRenderedCount = 0;
+const SEARCH_BATCH_SIZE = 60;
+
+// 追加渲染下一批结果；全部渲染完后移除「加载更多」按钮
+function renderSearchResults(resultsDiv) {
+    if (!resultsDiv) return;
+    if (searchRenderedCount >= searchAllResults.length) return;
+
+    const batch = searchAllResults.slice(searchRenderedCount, searchRenderedCount + SEARCH_BATCH_SIZE);
+    const html = batch.map(group => buildAggregatedCardHtml(group)).join('');
+
+    // 移除旧的「加载更多」按钮
+    const oldBtn = document.getElementById('loadMoreBtn');
+    if (oldBtn) oldBtn.remove();
+
+    resultsDiv.insertAdjacentHTML('beforeend', html);
+    searchRenderedCount += batch.length;
+
+    const remaining = searchAllResults.length - searchRenderedCount;
+    if (remaining > 0) {
+        resultsDiv.insertAdjacentHTML('beforeend', `
+            <div class="col-span-full text-center py-5">
+                <button id="loadMoreBtn" class="load-more-btn" onclick="loadMoreResults()">加载更多（${remaining}）</button>
+            </div>`);
+    }
+
+    // 对新插入的图片注册懒加载（重复 observe 同一元素无副作用）
+    observeLazyImages(resultsDiv);
+}
+
+// 「加载更多」按钮回调
+function loadMoreResults() {
+    const resultsDiv = document.getElementById('results');
+    if (resultsDiv) renderSearchResults(resultsDiv);
 }
 
 // 切换清空按钮的显示状态
@@ -887,6 +952,111 @@ function hookInput() {
 }
 document.addEventListener('DOMContentLoaded', hookInput);
 
+// 详情数据请求（带 5 分钟内存缓存），供单源详情与聚合详情复用
+async function fetchDetailData(id, sourceCode) {
+    if (!id) return null;
+    // 构建API参数
+    let apiParams = '';
+    if (sourceCode.startsWith('custom_')) {
+        const customIndex = sourceCode.replace('custom_', '');
+        const customApi = getCustomApiInfo(customIndex);
+        if (!customApi) return null;
+        apiParams = customApi.detail
+            ? '&customApi=' + encodeURIComponent(customApi.url) + '&customDetail=' + encodeURIComponent(customApi.detail) + '&source=custom'
+            : '&customApi=' + encodeURIComponent(customApi.url) + '&source=custom';
+    } else {
+        apiParams = '&source=' + sourceCode;
+    }
+
+    // 详情缓存：命中则跳过上游请求（剧集数据 5 分钟内有效）
+    const detailCacheKey = `${sourceCode}:${id}`;
+    let data = getCachedDetail(detailCacheKey);
+    if (!data) {
+        const timestamp = new Date().getTime();
+        const cacheBuster = `&_t=${timestamp}`;
+        const response = await fetch(`/api/detail?id=${encodeURIComponent(id)}${apiParams}${cacheBuster}`);
+        data = await response.json();
+        setCachedDetail(detailCacheKey, data);
+    }
+    return data;
+}
+
+// 渲染详情主体 HTML（封面 + 信息 + 排序按钮 + 剧集网格），供单源与聚合详情复用
+function renderDetailBody(data, vod_name, sourceCode, id) {
+    // 构建详情信息HTML
+    let detailInfoHtml = '';
+    if (data.videoInfo) {
+        // Prepare description text, strip HTML and trim whitespace
+        const descriptionText = data.videoInfo.desc ? data.videoInfo.desc.replace(/<[^>]+>/g, '').trim() : '';
+
+        // Check if there's any actual grid content
+        const hasGridContent = data.videoInfo.type || data.videoInfo.year || data.videoInfo.area || data.videoInfo.director || data.videoInfo.actor || data.videoInfo.remarks;
+
+        if (hasGridContent || descriptionText) { // Only build if there's something to show
+            detailInfoHtml = `
+        <div class="modal-detail-info">
+            ${hasGridContent ? `
+            <div class="detail-grid">
+                ${data.videoInfo.type ? `<div class="detail-item"><span class="detail-label">类型:</span> <span class="detail-value">${data.videoInfo.type}</span></div>` : ''}
+                ${data.videoInfo.year ? `<div class="detail-item"><span class="detail-label">年份:</span> <span class="detail-value">${data.videoInfo.year}</span></div>` : ''}
+                ${data.videoInfo.area ? `<div class="detail-item"><span class="detail-label">地区:</span> <span class="detail-value">${data.videoInfo.area}</span></div>` : ''}
+                ${data.videoInfo.director ? `<div class="detail-item"><span class="detail-label">导演:</span> <span class="detail-value">${data.videoInfo.director}</span></div>` : ''}
+                ${data.videoInfo.actor ? `<div class="detail-item"><span class="detail-label">主演:</span> <span class="detail-value">${data.videoInfo.actor}</span></div>` : ''}
+                ${data.videoInfo.remarks ? `<div class="detail-item"><span class="detail-label">备注:</span> <span class="detail-value">${data.videoInfo.remarks}</span></div>` : ''}
+            </div>` : ''}
+            ${descriptionText ? `
+            <div class="detail-desc">
+                <p class="detail-label">简介:</p>
+                <p class="detail-desc-content">${descriptionText}</p>
+            </div>` : ''}
+        </div>
+        `;
+        }
+    }
+
+    // 封面图（懒加载 + 失败回退，无封面时跳过）
+    const coverUrl = data.videoInfo && data.videoInfo.cover;
+    const safeTitleAttr = (vod_name || '未知视频').toString().replace(/"/g, '&quot;');
+    const coverHtml = coverUrl && /^https?:\/\//i.test(coverUrl) ? `
+        <div class="lazy-img-wrap relative w-full max-w-[160px] aspect-[2/3] rounded-lg overflow-hidden mb-4 mx-auto sm:mx-0 flex-shrink-0">
+            <img src="${IMG_TRANSPARENT}" data-src="${coverUrl.replace(/"/g, '&quot;')}" alt="${safeTitleAttr}"
+                 class="w-full h-full object-cover"
+                 onerror="handleImageError(this)"
+                 decoding="async">
+        </div>` : '';
+
+    const safeSourceCode = sourceCode.replace(/"/g, '&quot;');
+    const safeVodId = (id || '').toString().replace(/"/g, '&quot;');
+
+    return `
+        <div class="sm:flex sm:gap-5">
+            ${coverHtml}
+            <div class="flex-1 min-w-0">
+                ${detailInfoHtml}
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+            <div class="flex items-center gap-2">
+                <button class="js-toggle-order px-3 py-1.5 bg-[#333] hover:bg-[#444] border border-[#444] rounded text-sm transition-colors flex items-center gap-1"
+                        data-source="${safeSourceCode}"
+                        data-vod-id="${safeVodId}">
+                    <svg class="w-4 h-4 transform ${episodesReversed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                    </svg>
+                    <span>${episodesReversed ? '正序排列' : '倒序排列'}</span>
+                </button>
+                <span class="text-gray-400 text-sm">共 ${data.episodes.length} 集</span>
+            </div>
+            <button onclick="copyLinks()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors">
+                复制链接
+            </button>
+        </div>
+        <div id="episodesGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+            ${renderEpisodes(vod_name, sourceCode, id)}
+        </div>
+    `;
+}
+
 // 显示详情 - 修改为支持自定义API
 async function showDetails(id, vod_name, sourceCode) {
     // 密码保护校验
@@ -903,35 +1073,11 @@ async function showDetails(id, vod_name, sourceCode) {
 
     showLoading();
     try {
-        // 构建API参数
-        let apiParams = '';
-
-        // 处理自定义API源
-        if (sourceCode.startsWith('custom_')) {
-            const customIndex = sourceCode.replace('custom_', '');
-            const customApi = getCustomApiInfo(customIndex);
-            if (!customApi) {
-                showToast('自定义API配置无效', 'error');
-                hideLoading();
-                return;
-            }
-            // 传递 detail 字段
-            if (customApi.detail) {
-                apiParams = '&customApi=' + encodeURIComponent(customApi.url) + '&customDetail=' + encodeURIComponent(customApi.detail) + '&source=custom';
-            } else {
-                apiParams = '&customApi=' + encodeURIComponent(customApi.url) + '&source=custom';
-            }
-        } else {
-            // 内置API
-            apiParams = '&source=' + sourceCode;
+        const data = await fetchDetailData(id, sourceCode);
+        if (!data) {
+            showToast('自定义API配置无效', 'error');
+            return;
         }
-
-        // Add a timestamp to prevent caching
-        const timestamp = new Date().getTime();
-        const cacheBuster = `&_t=${timestamp}`;
-        const response = await fetch(`/api/detail?id=${encodeURIComponent(id)}${apiParams}${cacheBuster}`);
-
-        const data = await response.json();
 
         const modal = document.getElementById('modal');
         const modalTitle = document.getElementById('modalTitle');
@@ -946,62 +1092,11 @@ async function showDetails(id, vod_name, sourceCode) {
         currentVideoTitle = vod_name || '未知视频';
 
         if (data.episodes && data.episodes.length > 0) {
-            // 构建详情信息HTML
-            let detailInfoHtml = '';
-            if (data.videoInfo) {
-                // Prepare description text, strip HTML and trim whitespace
-                const descriptionText = data.videoInfo.desc ? data.videoInfo.desc.replace(/<[^>]+>/g, '').trim() : '';
-
-                // Check if there's any actual grid content
-                const hasGridContent = data.videoInfo.type || data.videoInfo.year || data.videoInfo.area || data.videoInfo.director || data.videoInfo.actor || data.videoInfo.remarks;
-
-                if (hasGridContent || descriptionText) { // Only build if there's something to show
-                    detailInfoHtml = `
-                <div class="modal-detail-info">
-                    ${hasGridContent ? `
-                    <div class="detail-grid">
-                        ${data.videoInfo.type ? `<div class="detail-item"><span class="detail-label">类型:</span> <span class="detail-value">${data.videoInfo.type}</span></div>` : ''}
-                        ${data.videoInfo.year ? `<div class="detail-item"><span class="detail-label">年份:</span> <span class="detail-value">${data.videoInfo.year}</span></div>` : ''}
-                        ${data.videoInfo.area ? `<div class="detail-item"><span class="detail-label">地区:</span> <span class="detail-value">${data.videoInfo.area}</span></div>` : ''}
-                        ${data.videoInfo.director ? `<div class="detail-item"><span class="detail-label">导演:</span> <span class="detail-value">${data.videoInfo.director}</span></div>` : ''}
-                        ${data.videoInfo.actor ? `<div class="detail-item"><span class="detail-label">主演:</span> <span class="detail-value">${data.videoInfo.actor}</span></div>` : ''}
-                        ${data.videoInfo.remarks ? `<div class="detail-item"><span class="detail-label">备注:</span> <span class="detail-value">${data.videoInfo.remarks}</span></div>` : ''}
-                    </div>` : ''}
-                    ${descriptionText ? `
-                    <div class="detail-desc">
-                        <p class="detail-label">简介:</p>
-                        <p class="detail-desc-content">${descriptionText}</p>
-                    </div>` : ''}
-                </div>
-                `;
-                }
-            }
-
             currentEpisodes = data.episodes;
             currentEpisodeIndex = 0;
-
-            modalContent.innerHTML = `
-                ${detailInfoHtml}
-                <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
-                    <div class="flex items-center gap-2">
-                        <button class="js-toggle-order px-3 py-1.5 bg-[#333] hover:bg-[#444] border border-[#444] rounded text-sm transition-colors flex items-center gap-1"
-                                data-source="${sourceCode.replace(/"/g, '&quot;')}"
-                                data-vod-id="${id.replace(/"/g, '&quot;')}">
-                            <svg class="w-4 h-4 transform ${episodesReversed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
-                            </svg>
-                            <span>${episodesReversed ? '正序排列' : '倒序排列'}</span>
-                        </button>
-                        <span class="text-gray-400 text-sm">共 ${data.episodes.length} 集</span>
-                    </div>
-                    <button onclick="copyLinks()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors">
-                        复制链接
-                    </button>
-                </div>
-                <div id="episodesGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                    ${renderEpisodes(vod_name, sourceCode, id)}
-                </div>
-            `;
+            modalContent.innerHTML = renderDetailBody(data, vod_name, sourceCode, id);
+            // 注册弹窗内懒加载（封面图等）
+            observeLazyImages(modalContent);
         } else {
             modalContent.innerHTML = `
                 <div class="text-center py-8">
@@ -1017,6 +1112,207 @@ async function showDetails(id, vod_name, sourceCode) {
         showToast('获取详情失败，请稍后重试', 'error');
     } finally {
         hideLoading();
+    }
+}
+
+// ============ 搜索结果聚合：多源同片合并 + 详情内切换 ============
+let currentAggregatedItems = [];
+let currentAggregateSourceIndex = 0;
+const aggregateItemMap = new Map(); // 归一化标题 -> items[]
+
+// 标题归一化：同一影片在不同源命名有差异（如《战狼》vs《战狼 (2015)》），
+// 去空白/括号/连接符/尾部年份后作为聚合键
+function normalizeTitle(name) {
+    return String(name || '')
+        .toLowerCase()
+        .replace(/[\s\u3000]+/g, '')        // 去空白
+        .replace(/[《》\[\]【】]/g, '')      // 去书名号/方括号
+        .replace(/[()（）]/g, '')            // 去括号（保留内部文字）
+        .replace(/[·:：\-—_~,，.。!！?？]/g, '') // 去连接符/标点
+        .replace(/(19|20)\d{2}$/, '')        // 去尾部年份
+        .trim();
+}
+
+// 将搜索结果按归一化标题聚合；填充 aggregateItemMap 供详情切换使用
+function aggregateSearchResults(results) {
+    aggregateItemMap.clear();
+    const map = new Map();
+    results.forEach(item => {
+        const key = normalizeTitle(item.vod_name);
+        if (!key) return;
+        if (!map.has(key)) map.set(key, { key, name: item.vod_name, items: [] });
+        map.get(key).items.push(item);
+    });
+    const groups = Array.from(map.values());
+    groups.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    groups.forEach(g => aggregateItemMap.set(g.key, g.items));
+    return groups;
+}
+
+// 构建聚合卡片（多源徽章 + 归一化 key）
+function buildAggregatedCardHtml(group) {
+    const items = group.items;
+    const first = items[0] || {};
+    // 优先取有封面的条目作为卡片封面
+    const coverItem = items.find(i => i.vod_pic && i.vod_pic.startsWith('http')) || first;
+    const hasCover = !!(coverItem && coverItem.vod_pic && coverItem.vod_pic.startsWith('http'));
+
+    const safeName = (first.vod_name || '').toString()
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeKey = group.key.replace(/"/g, '&quot;');
+    const sourceCount = items.length;
+
+    // 源徽章：最多展示 4 个，超出显示 +N
+    const badges = items.slice(0, 4).map(i =>
+        `<span class="bg-[#222] text-xs px-1.5 py-0.5 rounded-full border border-[#333]">${(i.source_name || '未知').toString().replace(/"/g, '&quot;')}</span>`
+    ).join('');
+    const moreBadge = sourceCount > 4
+        ? `<span class="text-xs text-gray-500">+${sourceCount - 4}</span>` : '';
+
+    const typeName = (first.type_name || '').toString().replace(/</g, '&lt;');
+    const year = first.vod_year || '';
+    const remarks = (first.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;');
+
+    return `
+        <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full shadow-sm hover:shadow-md js-search-result"
+             data-aggregate-key="${safeKey}">
+            <div class="flex h-full">
+                ${hasCover ? `
+                <div class="lazy-img-wrap relative flex-shrink-0 search-card-img-container">
+                    <img src="${IMG_TRANSPARENT}" data-src="${coverItem.vod_pic}" data-orig="${coverItem.vod_pic}" alt="${safeName}"
+                         class="h-full w-full object-cover transition-transform hover:scale-110"
+                         onerror="handleImageError(this)"
+                         loading="lazy" decoding="async">
+                    <div class="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent"></div>
+                </div>` : ''}
+
+                <div class="p-2 flex flex-col flex-grow">
+                    <div class="flex-grow">
+                        <h3 class="font-semibold mb-2 break-words line-clamp-2 ${hasCover ? '' : 'text-center'}" title="${safeName}">${safeName}</h3>
+
+                        <div class="flex flex-wrap ${hasCover ? '' : 'justify-center'} gap-1 mb-2">
+                            ${typeName ? `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-blue-500 text-blue-300">${typeName}</span>` : ''}
+                            ${year ? `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-purple-500 text-purple-300">${year}</span>` : ''}
+                        </div>
+                        <p class="text-gray-400 line-clamp-2 overflow-hidden ${hasCover ? '' : 'text-center'} mb-2">
+                            ${remarks}
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between mt-1 pt-1 border-t border-gray-800 gap-1">
+                        <div class="flex flex-wrap items-center gap-1">
+                            ${badges}
+                            ${moreBadge}
+                        </div>
+                        <span class="text-xs text-gray-500 flex-shrink-0">${sourceCount} 个源</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 渲染资源源切换标签
+function renderSourceTabsHtml(items, activeIndex) {
+    const tabs = items.map((item, i) => {
+        const safeSourceName = (item.source_name || '未知源').toString().replace(/"/g, '&quot;');
+        return `<button class="source-tab${i === activeIndex ? ' active' : ''}" data-source-index="${i}" title="切换到${safeSourceName}">${safeSourceName}</button>`;
+    }).join('');
+    return `<div class="source-tabs">${tabs}</div>`;
+}
+
+// 打开聚合详情：标题 + 源切换条 + 默认加载第一个源
+async function showAggregatedDetails(key) {
+    // 密码保护校验
+    if (window.isPasswordProtected && window.isPasswordVerified) {
+        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+            showPasswordModal && showPasswordModal();
+            return;
+        }
+    }
+    const items = aggregateItemMap.get(key) || [];
+    if (!items.length) {
+        showToast('该视频暂无可用资源', 'warning');
+        return;
+    }
+
+    currentAggregatedItems = items;
+    currentAggregateSourceIndex = 0;
+
+    // F1：把聚合组的多源信息写入 localStorage，供播放页换源联动复用
+    // （播放页 showSwitchResourceModal 优先读取，免去按标题重复搜索）
+    try {
+        localStorage.setItem('aggregatedSources', JSON.stringify(items.map(i => ({
+            source_code: i.source_code,
+            source_name: i.source_name,
+            vod_id: i.vod_id,
+            vod_name: i.vod_name,
+            vod_pic: i.vod_pic || ''
+        }))));
+    } catch (e) {
+        // 存储失败不影响主流程
+    }
+
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalContent = document.getElementById('modalContent');
+    const first = items[0];
+    const safeTitle = (first.vod_name || '未知视频').toString()
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    modalTitle.innerHTML = `<span class="break-words">${safeTitle}</span>`;
+    currentVideoTitle = first.vod_name || '未知视频';
+
+    modalContent.innerHTML = renderSourceTabsHtml(items, 0) + `<div id="aggregateDetailBody"></div>`;
+    modal.classList.remove('hidden');
+
+    await loadAggregateSource(0);
+}
+
+// 加载指定索引的资源源详情到聚合详情区
+async function loadAggregateSource(index) {
+    const item = currentAggregatedItems[index];
+    if (!item) return;
+    currentAggregateSourceIndex = index;
+
+    const body = document.getElementById('aggregateDetailBody');
+    if (!body) return;
+
+    // 更新标签高亮
+    document.querySelectorAll('#modalContent .source-tab').forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+    });
+
+    const safeSourceName = (item.source_name || '未知源').toString().replace(/"/g, '&quot;');
+    body.innerHTML = `<div class="text-center py-10 text-gray-400">正在加载「${safeSourceName}」资源...</div>`;
+
+    try {
+        const data = await fetchDetailData(item.vod_id, item.source_code);
+        if (!data) {
+            body.innerHTML = `<div class="text-center py-8 text-gray-400">该源暂不可用，请切换其他资源</div>`;
+            return;
+        }
+        currentEpisodes = data.episodes || [];
+        currentEpisodeIndex = 0;
+        currentVideoTitle = item.vod_name || currentVideoTitle;
+
+        if (data.episodes && data.episodes.length > 0) {
+            body.innerHTML = renderDetailBody(data, item.vod_name, item.source_code, item.vod_id);
+            observeLazyImages(body);
+        } else {
+            body.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-red-400 mb-2">❌ 未找到播放资源</div>
+                    <div class="text-gray-500 text-sm">该源暂无可用资源，可切换到其他源</div>
+                </div>`;
+        }
+    } catch (e) {
+        console.error('加载聚合源详情失败:', e);
+        body.innerHTML = `
+            <div class="text-center py-8">
+                <div class="text-red-400 mb-2">❌ 加载失败</div>
+                <div class="text-gray-500 text-sm">请切换到其他资源源</div>
+            </div>`;
     }
 }
 

@@ -3,7 +3,18 @@
 // 原始逻辑来源于 server.mjs 的 isValidUrl（阶段 2.6 会增强 IPv6 防护）
 
 const DEFAULT_BLOCKED_HOSTNAMES = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
-const DEFAULT_BLOCKED_PREFIXES = ['192.168.', '10.', '172.', '169.254.', '100.64.', 'fc00:', 'fd00:'];
+// 私有/链路本地网段前缀（172.16.0.0/12 需精确到 172.16.-172.31.，避免误伤 172.217.x 等公网段）
+const DEFAULT_BLOCKED_PREFIXES = ['192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', '169.254.', '100.64.', 'fc00:', 'fd00:'];
+
+/**
+ * 判断主机名是否为私有/保留 IP 段（基于前缀匹配，含 IPv6 ULA 与 link-local）
+ */
+function isBlockedHostname(hostname, blockedPrefixes) {
+  for (const prefix of blockedPrefixes) {
+    if (hostname.startsWith(prefix)) return true;
+  }
+  return false;
+}
 
 /**
  * 验证目标 URL 是否可被代理。
@@ -39,9 +50,7 @@ export function isValidUrl(urlString, opts = {}) {
 
   if (blockedHostnames.includes(hostname)) return false;
 
-  for (const prefix of blockedPrefixes) {
-    if (hostname.startsWith(prefix)) return false;
-  }
+  if (isBlockedHostname(hostname, blockedPrefixes)) return false;
 
   return true;
 }

@@ -896,6 +896,108 @@ function clearLocalStorage() {
     });
 }
 
+// =====================================================================
+// 缩略图/封面图加载容错 + 渐进式懒加载（LibreTV 优化）
+// 统一解决首页预览图不显示问题，并在两种部署环境（本地 Node / Serverless）下
+// 都能正确出图。配套在 proxy-core/safe-fetch.mjs 增加了 safeFetchBinary，
+// 使 Serverless 代理能正确透传二进制图片。
+// =====================================================================
+
+// 1x1 透明占位：首屏先用它占位，背后的 shimmer 容器提供骨架效果
+const IMG_TRANSPARENT = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+);
+
+// 生成内联 SVG 占位图（data URI），任何网络/鉴权失败下都可见，无外部依赖
+function getPlaceholderImageSvg(label) {
+    const text = (label || '无封面').slice(0, 8);
+    const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450">' +
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0%" stop-color="#1e293b"/>' +
+        '<stop offset="100%" stop-color="#0f172a"/>' +
+        '</linearGradient></defs>' +
+        '<rect width="300" height="450" fill="url(#g)"/>' +
+        '<circle cx="150" cy="175" r="36" fill="none" stroke="#475569" stroke-width="6"/>' +
+        '<path d="M130 157l38 21-38 21z" fill="#475569"/>' +
+        '<text x="150" y="300" font-family="sans-serif" font-size="22" fill="#64748b" text-anchor="middle">' + text + '</text>' +
+        '</svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+// 全局图片错误处理器：在 <img onerror="handleImageError(this)"> 中调用。
+// 回退链：直连(已由 src/data-src 尝试) → 带鉴权代理 → 内联 SVG 兜底。
+// 通过 dataset.fb 记录尝试次数，避免无限循环。
+async function handleImageError(imgEl) {
+    if (!imgEl || imgEl.dataset.fb === 'done') return;
+    imgEl.dataset.fb = imgEl.dataset.fb || '0';
+    const tried = parseInt(imgEl.dataset.fb, 10);
+    imgEl.dataset.fb = String(tried + 1);
+
+    const originalUrl = imgEl.dataset.orig || '';
+    try {
+        if (tried === 0 && originalUrl && /^https?:\/\//i.test(originalUrl)) {
+            // 第一次失败：尝试带鉴权的代理（本地 server.mjs 与修复后的 Serverless 都能透传二进制图片）
+            const proxied = (window.ProxyAuth && window.ProxyAuth.addAuthToProxyUrl)
+                ? await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(originalUrl))
+                : PROXY_URL + encodeURIComponent(originalUrl);
+            imgEl.src = proxied;
+            return; // 若代理图也失败，会再次触发 onerror → 走下方兜底
+        }
+    } catch (e) {
+        console.warn('图片代理回退失败:', e);
+    }
+
+    // 最终兜底：内联 SVG（始终可见，无网络依赖）
+    imgEl.dataset.fb = 'done';
+    imgEl.src = getPlaceholderImageSvg(imgEl.alt || '无封面');
+    imgEl.classList.add('object-contain');
+}
+
+// ---- 渐进式懒加载（IntersectionObserver）----
+let __lazyObserver = null;
+function getLazyObserver() {
+    if (__lazyObserver) return __lazyObserver;
+    // 不支持 IntersectionObserver 时退化为即时加载
+    if (!('IntersectionObserver' in window)) {
+        return {
+            observe(el) { loadLazyImage(el); },
+            unobserve() {},
+            disconnect() {}
+        };
+    }
+    __lazyObserver = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                loadLazyImage(entry.target);
+                obs.unobserve(entry.target);
+            }
+        });
+    }, { rootMargin: '300px 0px' });
+    return __lazyObserver;
+}
+
+function loadLazyImage(imgEl) {
+    const real = imgEl.dataset.src;
+    if (real) {
+        imgEl.src = real;
+        imgEl.removeAttribute('data-src');
+    }
+}
+
+// 在渲染完图片容器后调用，对其中所有 data-src 图片注册懒加载观察
+function observeLazyImages(root) {
+    if (!root) return;
+    const imgs = root.querySelectorAll('img[data-src]');
+    const obs = getLazyObserver();
+    imgs.forEach(img => obs.observe(img));
+}
+
+// 提供透明占位常量，供渲染层（douban.js / app.js）使用
+function getTransparentPlaceholder() {
+    return IMG_TRANSPARENT;
+}
+
 // 显示配置文件导入页面
 function showImportBox(fun) {
     // 确保模态框在页面上只有一个实例
@@ -973,3 +1075,23 @@ function showImportBox(fun) {
         fun(fileInput.files[0]);
     });
 }
+
+// =====================================================================
+// 网络状态提示：断线/恢复时明确告知用户，避免误以为站点故障
+// =====================================================================
+(function initNetworkStatusHint() {
+    let offlineToastShown = false;
+
+    window.addEventListener('offline', function () {
+        offlineToastShown = true;
+        showToast('网络已断开，请检查网络连接', 'error');
+    });
+
+    window.addEventListener('online', function () {
+        // 仅在确实发生过离线提示时提示恢复，避免刷新页面时误报
+        if (offlineToastShown) {
+            offlineToastShown = false;
+            showToast('网络已恢复', 'success');
+        }
+    });
+})();

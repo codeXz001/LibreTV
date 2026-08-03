@@ -83,12 +83,15 @@ window.onload = function() {
     // 更新meta refresh标签
     const metaRefresh = document.querySelector('meta[http-equiv="refresh"]');
     if (metaRefresh) {
-        metaRefresh.content = `3; url=${finalPlayerUrl}`;
+        metaRefresh.content = `1; url=${finalPlayerUrl}`;
     }
     
     // 重定向到播放器页面
+    // 优化：原实现等待 2800ms，会显著拖慢「点播放→出画面」的感知速度。
+    // 该页只负责参数透传与返回地址记录，逻辑本身是同步完成的，
+    // 因此把等待压缩到 350ms（仅保留一次状态闪显），meta refresh 兜底同步缩短。
     setTimeout(() => {
         clearInterval(statusInterval);
         window.location.href = finalPlayerUrl;
-    }, 2800); // 稍微早于meta refresh的时间，确保我们的JS控制重定向
+    }, 350); // 尽快跳转，避免中转页造成明显等待
 };

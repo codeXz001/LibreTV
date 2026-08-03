@@ -1,14 +1,47 @@
 # netlify.toml
 
 [build]
-  # 如果你的项目不需要构建步骤 (纯静态 + functions)，可以省略 publish
-  # publish = "." # 假设你的 HTML/CSS/JS 文件在根目录
+  publish = "." # 发布根目录静态文件
   functions = "netlify/functions" # 指定 Netlify 函数目录
+  ignore = "git" # 忽略 git 提交触发自动构建，防止构建循环
 
 # 配置 Edge Functions
 [[edge_functions]]
   function = "inject-env"
   path = "/*"
+
+# ===== 静态资源缓存策略（与本地 server.mjs 保持一致）=====
+# JS/CSS/libs/图片：强缓存 1 天
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/libs/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/image/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+# HTML 页面：不缓存，避免更新后用户拿到旧版页面
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
 
 # 配置重写规则，将 /proxy/* 的请求路由到 proxy 函数
 # 这样前端的 PROXY_URL 仍然可以是 '/proxy/'
@@ -22,9 +55,3 @@
   from = "/s=*"
   to = "/index.html"
   status = 200
-
-# （可选）为其他静态文件设置缓存头等
-# [[headers]]
-#   for = "/*"
-#   [headers.values]
-#     # Add any global headers here

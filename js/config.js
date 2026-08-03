@@ -45,13 +45,80 @@ const API_SITES = {
         api: 'https://bfzyapi.com/api.php/provide/vod',
         name: '暴风资源',
     },
-    tyyszy: {
-        api: 'https://tyyszy.com/api.php/provide/vod',
-        name: '天翼资源',
+    // ===== 2026-08-03 新增：以下 8 个源逐站实测通过 =====
+    // 验证方式：直接请求 `?ac=videolist&wd=战狼`，均返回 JSON(code=1) 且有真实数据/海报。
+    // 已排除：樱花(403)、猫眼(fetch failed)、牛牛/索尼/丫丫(暂不支持搜索)、快看(404)。
+    hhzy: {
+        api: 'https://hhzyapi.com/api.php/provide/vod',
+        name: '豪华资源',
     },
-    dbzy: {
-        api: 'https://dbzy.tv/api.php/provide/vod',
-        name: '豆瓣资源',
+    lzzy: {
+        api: 'https://cj.lziapi.com/api.php/provide/vod',
+        name: '量子资源',
+    },
+    jszy: {
+        api: 'https://jszyapi.com/api.php/provide/vod',
+        name: '极速资源',
+    },
+    wujin: {
+        api: 'https://api.wujinapi.com/api.php/provide/vod',
+        name: '无尽影视',
+    },
+    hongniu: {
+        api: 'https://www.hongniuzy2.com/api.php/provide/vod',
+        name: '红牛资源',
+    },
+    uku: {
+        api: 'https://api.ukuapi88.com/api.php/provide/vod',
+        name: 'U酷影视',
+    },
+    '360zy': {
+        api: 'https://360zy.com/api.php/provide/vod',
+        name: '360资源',
+    },
+    piaoling: {
+        api: 'https://p2100.net/api.php/provide/vod',
+        name: '飘零资源',
+    },
+    // ===== 2026-08-03 第二批新增：5 个源逐站实测通过（同一验证方式）=====
+    // 已排除：山海(fetch failed)、旺旺(域名重定向到天涯首页)、闪电(暂不支持搜索)、
+    // 四九/熊掌(fetch failed)、优质资源库(返回HTML而非JSON)。
+    iqiyi: {
+        api: 'https://iqiyizyapi.com/api.php/provide/vod',
+        name: '爱奇艺资源',
+    },
+    zuidazy: {
+        api: 'https://zuidazy.me/api.php/provide/vod',
+        name: '最大点播',
+    },
+    modu: {
+        api: 'https://caiji.moduapi.cc/api.php/provide/vod',
+        name: '魔都动漫',
+    },
+    mdzy: {
+        api: 'https://www.mdzyapi.com/api.php/provide/vod',
+        name: '魔都资源',
+    },
+    ikun: {
+        api: 'https://ikunzyapi.com/api.php/provide/vod',
+        name: '爱坤资源',
+    },
+    // ===== 2026-08-03 第三批新增：4 个源逐站实测通过 =====
+    zuidapi: {
+        api: 'https://api.zuidapi.com/api.php/provide/vod',
+        name: '最大资源',
+    },
+    bdzy: {
+        api: 'https://api.apibdzy.com/api.php/provide/vod',
+        name: '百度资源',
+    },
+    lzzy2: {
+        api: 'https://cj.lzcaiji.com/api.php/provide/vod',
+        name: '量子资源备用',
+    },
+    huya: {
+        api: 'https://www.huyaapi.com/api.php/provide/vod/at/json',
+        name: '虎牙资源',
     },
 };
 
@@ -111,7 +178,10 @@ const PLAYER_CONFIG = {
     timeout: 15000,  // 播放器加载超时时间
     filterAds: true,  // 是否启用广告过滤
     autoPlayNext: true,  // 默认启用自动连播功能
-    adFilteringEnabled: true, // 默认开启分片广告过滤
+    // 2026-08-03：默认关闭分片广告过滤——旧实现会删除所有 #EXT-X-DISCONTINUITY 行，
+    // 破坏正常流的码率切换/续播结构，且广告分段并未真正移除。
+    // 开启时走改进后的域名黑名单过滤（见 player.js filterAdsFromM3U8）。
+    adFilteringEnabled: false,
     adFilteringStorage: 'adFilteringEnabled' // 存储广告过滤设置的键名
 };
 
@@ -146,3 +216,32 @@ const CUSTOM_API_CONFIG = {
 
 // 隐藏内置黄色采集站API的变量
 const HIDE_BUILTIN_ADULT_APIS = false;
+
+// ===== 首屏预连接（preconnect / dns-prefetch）=====
+// 浏览器提前建立到资源站与豆瓣图床的连接，减少首屏图片与数据请求的握手延迟。
+// 在 API_SITES 定义后执行，动态收集域名；重复访问时去重。
+(function preconnectResources() {
+    const hosts = new Set(['https://movie.douban.com']);
+    try {
+        Object.keys(API_SITES || {}).forEach(key => {
+            const api = API_SITES[key];
+            if (api && api.api) {
+                const origin = new URL(api.api).origin;
+                if (/^https?:$/.test(new URL(origin).protocol)) hosts.add(origin);
+            }
+        });
+    } catch (e) {
+        // 个别异常域名不影响整体
+    }
+    hosts.forEach(h => {
+        if (document.querySelector(`link[href="${h}"]`)) return;
+        const pre = document.createElement('link');
+        pre.rel = 'preconnect';
+        pre.href = h;
+        document.head.appendChild(pre);
+        const dns = document.createElement('link');
+        dns.rel = 'dns-prefetch';
+        dns.href = h;
+        document.head.appendChild(dns);
+    });
+})();

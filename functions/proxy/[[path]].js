@@ -16,6 +16,8 @@ import {
   isMasterPlaylist,
   pickBestVariant,
   safeFetchText,
+  safeFetchBinary,
+  isImageUrl,
 } from '../../proxy-core/index.mjs';
 
 // --- Configuration (from Cloudflare env bindings) ---
@@ -157,6 +159,39 @@ export async function onRequest(context) {
         return createResponse('无效的代理请求。路径应为 /proxy/<经过编码的URL>', 400);
       }
       logDebug(`收到代理请求: ${targetUrl}`);
+
+      // --- 二进制图片快速通道：直接透传字节，避免被当作文本做 UTF-8 解码而损坏 ---
+      if (isImageUrl(targetUrl)) {
+        try {
+          const imgHeaders = new Headers({
+            'User-Agent': randomUserAgent(USER_AGENTS),
+            'Accept': 'image/*,*/*',
+            'Accept-Language': request.headers.get('Accept-Language') || 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Referer': request.headers.get('Referer') || new URL(targetUrl).origin,
+          });
+          const { buffer, contentType, responseHeaders } = await safeFetchBinary(targetUrl, {
+            fetchInit: { headers: imgHeaders, redirect: 'follow' },
+          });
+          logDebug(`图片代理透传: ${targetUrl}, Content-Type: ${contentType}, 字节: ${buffer.byteLength}`);
+          const h = new Headers();
+          Object.entries(buildCorsHeaders()).forEach(([k, v]) => h.set(k, v));
+          responseHeaders.forEach((value, key) => {
+            const lower = key.toLowerCase();
+            if (!lower.startsWith('access-control-') && lower !== 'content-encoding' && lower !== 'content-length') {
+              h.set(key, value);
+            }
+          });
+          h.set('Content-Type', contentType || 'application/octet-stream');
+          h.set('Cache-Control', `public, max-age=${CACHE_TTL}`);
+          return new Response(buffer, { status: 200, headers: h });
+        } catch (imgErr) {
+          logDebug(`图片代理失败: ${imgErr.message}`);
+          return new Response(
+            JSON.stringify({ success: false, error: `图片代理失败: ${imgErr.message}` }),
+            { status: (imgErr.status && imgErr.status < 500) ? imgErr.status : 502, headers: { ...buildCorsHeaders(), 'Content-Type': 'application/json' } }
+          );
+        }
+      }
 
       // --- KV 原始内容缓存 ---
       const cacheKey = `proxy_raw:${targetUrl}`;

@@ -16,6 +16,8 @@ import {
   isMasterPlaylist,
   pickBestVariant,
   safeFetchText,
+  safeFetchBinary,
+  isImageUrl,
   DEFAULT_CORS_ALLOW_ALL,
 } from '../../proxy-core/index.mjs';
 
@@ -147,6 +149,29 @@ export const handler = async (event) => {
   logDebug(`Resolved target URL: ${targetUrl || 'null'}`);
   if (!targetUrl) {
     return buildErrorResponse(400, 'Invalid proxy request path. Could not extract target URL.');
+  }
+
+  // --- 二进制图片快速通道：直接透传字节，避免被当作文本做 UTF-8 解码而损坏 ---
+  if (isImageUrl(targetUrl)) {
+    try {
+      const imgHeaders = {
+        'User-Agent': randomUserAgent(USER_AGENTS),
+        'Accept': 'image/*,*/*',
+        'Accept-Language': event.headers?.['accept-language'] || 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': event.headers?.referer || new URL(targetUrl).origin,
+      };
+      const { buffer, contentType, responseHeaders } = await safeFetchBinary(targetUrl, {
+        fetchInit: { headers: imgHeaders, redirect: 'follow' },
+      });
+      logDebug(`图片代理透传: ${targetUrl}, Content-Type: ${contentType}, 字节: ${buffer.byteLength}`);
+      const netlifyHeaders = { ...corsHeaders, ...filterUpstreamHeaders(responseHeaders) };
+      netlifyHeaders['Content-Type'] = contentType || 'application/octet-stream';
+      netlifyHeaders['Cache-Control'] = `public, max-age=${CACHE_TTL}`;
+      return { statusCode: 200, headers: netlifyHeaders, body: Buffer.from(buffer) };
+    } catch (imgErr) {
+      logDebug(`图片代理失败: ${imgErr.message}`);
+      return buildErrorResponse((imgErr.status && imgErr.status < 500) ? imgErr.status : 502, `图片代理失败: ${imgErr.message}`, targetUrl);
+    }
   }
 
   // --- Fetch + Process ---

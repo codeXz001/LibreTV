@@ -16,6 +16,8 @@ import {
   isMasterPlaylist,
   pickBestVariant,
   safeFetchText,
+  safeFetchBinary,
+  isImageUrl,
 } from '../../proxy-core/index.mjs';
 
 // --- Configuration ---
@@ -128,6 +130,44 @@ export default async function handler(req, res) {
     if (!targetUrl) throw new Error(`无效的代理请求路径。无法从组合路径 "${encodedUrlPath}" 中提取有效的目标 URL。`);
 
     logDebug(`开始处理目标 URL 的代理请求: ${targetUrl}`);
+
+    // --- 二进制图片快速通道：直接透传字节，避免被当作文本做 UTF-8 解码而损坏 ---
+    if (isImageUrl(targetUrl)) {
+      try {
+        const imgHeaders = {
+          'User-Agent': randomUserAgent(USER_AGENTS),
+          'Accept': 'image/*,*/*',
+          'Accept-Language': req.headers?.['accept-language'] || 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Referer': req.headers?.referer || new URL(targetUrl).origin,
+        };
+        const { buffer, contentType, responseHeaders } = await safeFetchBinary(targetUrl, {
+          fetchInit: { headers: imgHeaders, redirect: 'follow' },
+        });
+        logDebug(`图片代理透传: ${targetUrl}, Content-Type: ${contentType}, 字节: ${buffer.byteLength}`);
+        responseHeaders.forEach((value, key) => {
+          const lower = key.toLowerCase();
+          if (!lower.startsWith('access-control-') && lower !== 'content-encoding' && lower !== 'content-length') {
+            res.setHeader(key, value);
+          }
+        });
+        res
+          .status(200)
+          .setHeader('Content-Type', contentType || 'application/octet-stream')
+          .setHeader('Cache-Control', `public, max-age=${CACHE_TTL}`)
+          .send(Buffer.from(buffer));
+        return;
+      } catch (imgErr) {
+        logDebug(`图片代理失败: ${imgErr.message}`);
+        if (!res.headersSent) {
+          res.status((imgErr.status && imgErr.status < 500) ? imgErr.status : 502)
+            .setHeader('Content-Type', 'application/json')
+            .json({ success: false, error: `图片代理失败: ${imgErr.message}`, targetUrl });
+        } else if (!res.writableEnded) {
+          res.end();
+        }
+        return;
+      }
+    }
 
     // --- Fetch + Process ---
     const { content, contentType, responseHeaders } = await fetchContentWithType(targetUrl, req.headers);
