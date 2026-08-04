@@ -335,24 +335,6 @@ const HOME_CATEGORIES = [
 // 黄色内容过滤的分类黑名单（app.js 搜索与 home.js 首页推荐共用，单一事实源）
 const BANNED_TYPE_NAMES = ['伦理片', '福利', '里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒', 'cosplay', '黑丝诱惑', '无码', '日本无码', '有码', '日本有码', 'SWAG', '网红主播', '色情片', '同性片', '福利视频', '福利片'];
 
-// 首页外部资源导航：仅作为发现入口展示，不执行第三方页面脚本，也不参与站内搜索。
-const HOME_RESOURCE_NAV = [
-    {
-        id: 'ying-shi-cang',
-        name: '影视仓导航',
-        url: 'http://影视仓.com/',
-        description: '打开外部影视资源导航页',
-        badge: '外部导航'
-    },
-    {
-        id: 'fan-tai-ying',
-        name: '饭太硬导航',
-        url: 'http://www.饭太硬.art/tv',
-        description: '打开外部影视资源导航页',
-        badge: '外部导航'
-    }
-];
-
 // 首页推荐配置
 const HOME_CONFIG = {
     cacheTTL: 5 * 60 * 1000,   // 分类结果缓存时间
@@ -364,7 +346,6 @@ const HOME_CONFIG = {
 
 // 暴露到全局
 window.HOME_CATEGORIES = HOME_CATEGORIES;
-window.HOME_RESOURCE_NAV = HOME_RESOURCE_NAV;
 window.BANNED_TYPE_NAMES = BANNED_TYPE_NAMES;
 window.HOME_CONFIG = HOME_CONFIG;
 window.ACCESS_PASSWORD_CONFIG = ACCESS_PASSWORD_CONFIG;

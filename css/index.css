@@ -101,128 +101,10 @@
 .recent-searches.show { display: flex; }
 
 /* =========================================================
-   第二行：分类 tab（sticky + 横向滚动 + 胶片齿孔激活态）
-   ========================================================= */
-.cat-tabs-row {
-    position: sticky;
-    top: 52px; /* 贴顶栏下方 */
-    z-index: 20;
-    display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 0.6rem 1rem;
-    /* 视觉出血到容器边缘：用 calc 宽度 + 位移替代负 margin
-       （负 margin 在 body:flex 布局下会撑宽父容器 min-content） */
-    width: calc(100% + 2rem);
-    margin-left: -1rem;
-    background: rgba(10, 12, 16, 0.85);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-.cat-tabs-row::-webkit-scrollbar { display: none; }
-/* 桌面端分类 tab 居中 */
-@media (min-width: 768px) {
-    .cat-tabs-row { justify-content: center; }
-}
-.cat-tab {
-    position: relative;
-    flex: 0 0 auto;
-    min-height: 44px; /* 触控目标 ≥44px */
-    padding: 0.5rem 1.1rem;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    color: #cbd5e1;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: all 0.25s ease;
-}
-.cat-tab:hover {
-    color: #fff;
-    border-color: rgba(0, 204, 255, 0.5);
-    background: rgba(0, 204, 255, 0.08);
-}
-/* 胶片齿孔激活态：顶部 3 圆孔 + 底部蓝光条 */
-.cat-tab.active {
-    color: var(--primary-color);
-    border-color: rgba(0, 204, 255, 0.55);
-    background: rgba(0, 204, 255, 0.10);
-    font-weight: 600;
-}
-.cat-tab.active::before {
-    content: "";
-    position: absolute;
-    top: 3px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 34px;
-    height: 8px;
-    background-image:
-        radial-gradient(circle at 5px 4px, #0f1622 0 1.8px, rgba(0, 204, 255, 0.95) 2.1px 3px, transparent 3.3px),
-        radial-gradient(circle at 17px 4px, #0f1622 0 1.8px, rgba(0, 204, 255, 0.95) 2.1px 3px, transparent 3.3px),
-        radial-gradient(circle at 29px 4px, #0f1622 0 1.8px, rgba(0, 204, 255, 0.95) 2.1px 3px, transparent 3.3px);
-    background-repeat: no-repeat;
-    pointer-events: none;
-}
-.cat-tab.active::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    height: 2px;
-    border-radius: 2px;
-    background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
-    pointer-events: none;
-}
-
-/* =========================================================
    三视图切换
    ========================================================= */
 .app-view { display: none; }
 .app-view.active { display: block; }
-
-/* =========================================================
-   外部资源导航（影视仓/饭太硬等入口）
-   ========================================================= */
-.resource-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1.1rem;
-}
-.resource-nav-item {
-    flex: 1 1 200px;
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    padding: 0.6rem 0.8rem;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.resource-nav-item:hover {
-    background: rgba(0, 204, 255, 0.08);
-    border-color: rgba(0, 204, 255, 0.4);
-}
-.resource-nav-info { flex: 1; min-width: 0; }
-.resource-nav-name { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
-.resource-nav-desc { font-size: 0.72rem; color: #64748b; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.resource-nav-badge {
-    flex-shrink: 0;
-    font-size: 0.62rem;
-    color: #7dd3fc;
-    border: 1px solid rgba(0, 204, 255, 0.35);
-    border-radius: 9999px;
-    padding: 1px 6px;
-}
-.resource-nav-arrow { width: 0.9rem; height: 0.9rem; color: #64748b; flex-shrink: 0; }
-.resource-nav-item:hover .resource-nav-arrow { color: var(--primary-color); }
 
 /* 分类内容区：正在热映横滑条 + 最新更新网格
    ========================================================= */
@@ -409,12 +291,9 @@
 body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
 
 /* =========================================================
-   搜索态：隐藏分类 tab 与推荐区，只留结果
+   搜索态：隐藏推荐区，只留结果
    ========================================================= */
-body.is-searching #catTabs,
 body.is-searching #homeFeed { display: none; }
-/* 非影视页时隐藏分类 tab */
-body:not([data-view="view-home"]) #catTabs { display: none; }
 
 /* =========================================================
    源配置 / 我的：设置卡片与按钮
@@ -571,7 +450,7 @@ a.btn-neutral { text-decoration: none; display: inline-block; text-align: center
     .app-view.active .poster-card {
         animation: none !important;
     }
-    .cat-tabs-row, .hot-strip {
+    .hot-strip {
         scroll-behavior: auto;
     }
 }

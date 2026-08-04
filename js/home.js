@@ -1,17 +1,16 @@
 // =============================================================
-// 首页分类推荐模块(LibreTV 重构版)
-// 职责:分类 tab 渲染与切换、"正在热映"横滑条 + "最新更新"网格、
-//       多源聚合、池化分页、视图切换底部导航。
+// 首页推荐模块(LibreTV 重构版)
+// 职责:"正在热映"横滑条 + "最新更新"网格、池化分页、视图切换底部导航。
 //
 // 数据方案(2026-08-04 起):
-//   - 所有分类(电影/电视剧/动漫/综艺)统一从「默认源」拉取最新内容,
+//   - 首页无分类 tab,仅展示推荐流:全部数据统一从「默认源」拉取,
 //     不做 type_name 分类匹配过滤(直接展示源的最新/最火内容);
-//   - 资源采集站分类(仅管理员可见)拉取全部标记 adult 的源;
+//   - 点击卡片直接进入播放页(默认源第一集),换源/选集在播放页完成;
 //   - 首页不再使用豆瓣数据。
 //
-// 依赖:config.js(API_SITES/HOME_CATEGORIES/HOME_CONFIG)、search.js(mapLimit)、
+// 依赖:config.js(API_SITES/HOME_CONFIG)、search.js(mapLimit)、
 //       ui.js(懒加载/图片回退/Toast)、app.js(selectedAPIs/aggregateItemMap/
-//       showAggregatedDetails/normalizeTitle)
+//       fetchDetailData/normalizeTitle)
 // =============================================================
 
 // ---- 分类匹配规则(保留备用:当前首页不做 type_name 过滤,均展示源最新内容) ----
@@ -172,33 +171,6 @@ function initPool(catId) {
     };
     homePools[catId] = pool;
     return pool;
-}
-
-// 渲染分类 tab 行（资源采集站分类仅管理员模式可见）
-function renderCategoryTabs() {
-    const row = document.getElementById('catTabs');
-    if (!row) return;
-    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
-    const cats = (HOME_CATEGORIES || []).filter(cat => isAdmin || cat.id !== 'adult');
-    row.innerHTML = cats.map(cat => `
-        <button class="cat-tab${cat.id === homeCurrentCatId ? ' active' : ''}" data-cat-id="${cat.id}" type="button">${cat.name}</button>
-    `).join('');
-}
-
-// 切换分类:更新激活态并加载该分类内容
-function switchCategory(catId) {
-    if (!HOME_CATEGORIES.some(c => c.id === catId)) return;
-    // 普通模式不允许进入资源采集站分类
-    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
-    if (catId === 'adult' && !isAdmin) {
-        if (typeof showToast === 'function') showToast('请使用管理员密码访问', 'warning');
-        return;
-    }
-    homeCurrentCatId = catId;
-    document.querySelectorAll('#catTabs .cat-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.catId === catId);
-    });
-    loadCategory(catId);
 }
 
 // ---- 采集站请求(直连代理,与 searchByAPIAndKeyWord 同链路;密码检查在 loadCategory 入口) ----
@@ -443,49 +415,10 @@ function skeletonHtml(count) {
     return html;
 }
 
-// 外部资源导航区块：仅展示入口，新窗口打开，不执行第三方页面脚本
-function buildResourceNavHtml() {
-    const items = (typeof HOME_RESOURCE_NAV !== 'undefined') ? HOME_RESOURCE_NAV : [];
-    if (!items.length) return '';
-    const cards = items.map(nav => {
-        const safeName = escapeHomeHtml(nav.name);
-        const safeDesc = escapeHomeHtml(nav.description);
-        const safeBadge = escapeHomeHtml(nav.badge);
-        const safeUrl = nav.url.replace(/"/g, '&quot;');
-        return `
-            <div class="resource-nav-item resource-nav-link" role="button" tabindex="0"
-                 data-nav-url="${safeUrl}" data-nav-name="${safeName}" aria-label="${safeName}">
-                <div class="resource-nav-info">
-                    <div class="resource-nav-name">${safeName}</div>
-                    <div class="resource-nav-desc">${safeDesc}</div>
-                </div>
-                ${safeBadge ? `<span class="resource-nav-badge">${safeBadge}</span>` : ''}
-                <svg class="resource-nav-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                </svg>
-            </div>`;
-    }).join('');
-    return `
-        <div class="resource-nav" aria-label="外部资源导航">
-            ${cards}
-        </div>`;
-}
-
-// 外部导航点击事件委托：新标签页打开（noopener noreferrer）
-function handleResourceNavClick(e) {
-    const el = e.target.closest('.resource-nav-link');
-    if (!el) return;
-    const url = el.dataset.navUrl;
-    if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-    }
-}
-
-// 构建某分类的区块骨架(资源导航 + 热映区 + 最新区 + 分页哨兵)
+// 构建首页区块骨架(热映区 + 最新区 + 分页哨兵)
 function buildCatSectionHtml(catId) {
     return `
         <div class="cat-section">
-            ${buildResourceNavHtml()}
             <div class="hot-section">
                 <div class="section-head">
                     <h2 class="section-title hot-title">正在热映</h2>
@@ -739,7 +672,7 @@ function switchView(viewId) {
     // 回到影视页且首页为空(如首屏加载被中断)时补一次加载
     if (viewId === 'view-home') {
         const feed = document.getElementById('homeFeed');
-        if (feed && !feed.children.length) switchCategory(homeCurrentCatId);
+        if (feed && !feed.children.length) loadCategory(homeCurrentCatId);
     }
     window.scrollTo({ top: 0 });
 }
@@ -750,33 +683,80 @@ function showDisclaimer() {
     if (modal) modal.style.display = 'flex';
 }
 
-// 卡片点击(事件委托):
-//   - 豆瓣/任何带标题的条目(data-title)→ 优先标题搜索；data-search-key 为豆瓣显式标记
-//   - 采集站聚合条目(data-key)→ 打开聚合详情(多源测速排序 + 源切换)；聚合数据缺失时回退标题搜索
+// 卡片点击(事件委托)：
+//   点击首页卡片直接进入播放页（默认源第一集），不再打开详情弹窗
 function handleHomeCardClick(e) {
     const card = e.target.closest('.poster-card');
     if (!card) return;
-    const searchKey = decodeHomeHtml(card.dataset.searchKey);
     const title = decodeHomeHtml(card.dataset.title);
     const key = card.dataset.key || '';
-    // 豆瓣条目或任何带原始标题的条目：用标题搜索源站
-    if (searchKey || (title && !key)) {
-        if (typeof fillAndSearchWithDouban === 'function') {
-            fillAndSearchWithDouban(searchKey || title);
+    if (key) {
+        playHomeItem(key, title);
+    } else if (title && typeof fillAndSearchWithDouban === 'function') {
+        // 无聚合 key 的条目（理论上首页不会出现）：回退标题搜索，保证点击必有响应
+        fillAndSearchWithDouban(title);
+    }
+}
+
+// 点击首页卡片直接播放：取该影片聚合条目的第一个源（首页数据来自默认源），
+// 加载详情后跳转播放页第一集；换源/选集在播放页内完成
+async function playHomeItem(key, title) {
+    // 密码保护校验（与 loadCategory 一致）
+    try {
+        if (window.ensurePasswordProtection) {
+            window.ensurePasswordProtection();
+        } else if (window.isPasswordProtected && window.isPasswordVerified) {
+            if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+                showPasswordModal && showPasswordModal();
+                return;
+            }
         }
+    } catch (error) {
+        console.warn('密码保护校验失败:', error.message);
         return;
     }
-    // 采集站聚合条目：打开聚合详情；聚合数据缺失时回退标题搜索
-    if (key) {
-        const hasAggregateData = (typeof aggregateItemMap !== 'undefined') && aggregateItemMap.has(key);
-        if (hasAggregateData && typeof showAggregatedDetails === 'function') {
-            showAggregatedDetails(key);
-        } else if (title && typeof fillAndSearchWithDouban === 'function') {
-            // 聚合详情数据缺失（如旧缓存/未聚合条目）：回退标题搜索，保证点击必有响应
-            fillAndSearchWithDouban(title);
+
+    const items = (typeof aggregateItemMap !== 'undefined') ? (aggregateItemMap.get(key) || []) : [];
+    if (!items.length) {
+        if (typeof showToast === 'function') showToast('该视频暂无可用资源', 'warning');
+        return;
+    }
+
+    const item = items[0];
+    if (typeof showLoading === 'function') showLoading();
+    try {
+        const data = await fetchDetailData(item.vod_id, item.source_code);
+        if (!data || !data.episodes || !data.episodes.length) {
+            if (typeof showToast === 'function') showToast('未找到播放资源，请稍后重试', 'error');
+            return;
         }
-    } else if (title && typeof fillAndSearchWithDouban === 'function') {
-        fillAndSearchWithDouban(title);
+        const targetUrl = data.episodes[0];
+        const watchUrl = `player.html?id=${encodeURIComponent(item.vod_id)}&source=${encodeURIComponent(item.source_code)}&url=${encodeURIComponent(targetUrl)}&index=0&title=${encodeURIComponent(item.vod_name || title || '')}`;
+
+        // 保存播放状态与聚合组（供播放页换源联动复用）
+        try {
+            localStorage.setItem('currentVideoTitle', item.vod_name || title || '未知视频');
+            localStorage.setItem('currentEpisodes', JSON.stringify(data.episodes));
+            localStorage.setItem('currentEpisodeIndex', 0);
+            localStorage.setItem('currentSourceCode', item.source_code);
+            localStorage.setItem('lastPlayTime', Date.now());
+            localStorage.setItem('aggregatedSources', JSON.stringify(items.map(i => ({
+                source_code: i.source_code,
+                source_name: i.source_name,
+                vod_id: i.vod_id,
+                vod_name: i.vod_name,
+                vod_pic: i.vod_pic || ''
+            }))));
+        } catch (err) {
+            // 存储失败不影响跳转
+        }
+
+        window.location.href = watchUrl;
+    } catch (error) {
+        console.error('首页直接播放失败:', error);
+        if (typeof showToast === 'function') showToast('播放失败，请稍后重试', 'error');
+    } finally {
+        if (typeof hideLoading === 'function') hideLoading();
     }
 }
 
@@ -791,17 +771,6 @@ function handleHomeCardKeydown(e) {
 
 // ---- 初始化 ----
 function initHomePage() {
-    renderCategoryTabs();
-
-    // 分类 tab 事件委托
-    const catTabs = document.getElementById('catTabs');
-    if (catTabs) {
-        catTabs.addEventListener('click', e => {
-            const btn = e.target.closest('.cat-tab');
-            if (btn && btn.dataset.catId) switchCategory(btn.dataset.catId);
-        });
-    }
-
     // 底部 tabbar 事件委托
     const tabbar = document.getElementById('tabbar');
     if (tabbar) {
@@ -811,26 +780,22 @@ function initHomePage() {
         });
     }
 
-    // 首页内容点击/键盘
+    // 首页内容点击/键盘（卡片点击直接播放）
     const feed = document.getElementById('homeFeed');
     if (feed) {
         feed.addEventListener('click', handleHomeCardClick);
         feed.addEventListener('keydown', handleHomeCardKeydown);
-        // 外部资源导航（影视仓/饭太硬）点击委托
-        feed.addEventListener('click', handleResourceNavClick);
     }
 
-    // 初始加载第一个分类
-    switchCategory(homeCurrentCatId);
+    // 初始加载推荐内容（默认源的最新 + 最热）
+    loadCategory(homeCurrentCatId);
 }
 
-// 密码验证通过后（如切换到管理员模式）重新渲染分类 tab，显示/隐藏资源采集站分类
+// 密码验证通过后（如切换到管理员模式）重新加载首页
 document.addEventListener('passwordVerified', function () {
-    renderCategoryTabs();
-    // 若当前停留在资源采集站分类但模式无权限，退回默认分类
     if (homeCurrentCatId === 'adult') {
         const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
-        if (!isAdmin) switchCategory('movie');
+        if (!isAdmin) loadCategory('movie');
     }
 });
 
