@@ -11,7 +11,18 @@ import { createHash } from 'node:crypto';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 function loadConfig() {
-  const sandbox = { window: {} };
+  const sandbox = {
+    window: {},
+    document: {
+      addEventListener() {},
+      getElementById() { return null; },
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return { rel: '', href: '', crossOrigin: '', appendChild() {}, classList: { add() {}, remove() {} } }; },
+      head: { appendChild() {} },
+    },
+    console,
+  };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(join(root, 'js/config.js'), 'utf8'), sandbox, { filename: 'js/config.js' });
   return sandbox.window;

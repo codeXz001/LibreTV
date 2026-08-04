@@ -202,7 +202,7 @@ function initAPICheckboxes() {
     });
     container.appendChild(normaldiv);
 
-    // 受限内容源不在普通用户界面中展示。
+    // 按访问模式渲染资源采集站分组（管理员显示，普通模式隐藏）并应用界面状态
     applyAccessModeUI();
 }
 
