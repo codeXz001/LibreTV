@@ -1,16 +1,36 @@
 // 密码保护功能
+//
+// 关键设计：内置密码哈希在脚本加载时立即启动异步预计算，
+// verifyPassword 异步路径会先 await 计算完毕，确保 999999/147258 一定能登录。
+// 即便浏览器因 Service Worker 缓存等原因导致 js-sha256 库加载失败，
+// 这里仍可纯走 Web Crypto API（crypto.subtle.digest）完成验证。
 
-// 保存原始 js-sha256 实现(defer 化后内联保存脚本已移除;
-// sha256.min.js 在文档顺序上先于本脚本执行,此处兜底保存供 sha256()/proxy-auth.js 使用)
+// 尝试保留 js-sha256 作为高性能同步路径的兜底（HTTP 上无法用 Web Crypto 时尤其重要）
 if (typeof window._jsSha256 !== 'function' && typeof window.sha256 === 'function') {
     window._jsSha256 = window.sha256;
 }
 
-// 同步 SHA-256（js-sha256 提供，供内置密码在同步路径中计算哈希）
+// 同步 SHA-256：优先走 js-sha256
 function sha256Sync(message) {
     if (typeof window._jsSha256 === 'function') return window._jsSha256(message);
     if (typeof window.sha256 === 'function') return window.sha256(message);
     return null;
+}
+
+// 异步 SHA-256：优先走 Web Crypto API（永远可用）
+async function sha256(message) {
+    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+        try {
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));
+            return Array.from(new Uint8Array(buf))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+        } catch (e) {
+            // 某些特殊环境下 Web Crypto 不可用，降级到 js-sha256
+        }
+    }
+    if (typeof window._jsSha256 === 'function') return window._jsSha256(message);
+    if (typeof window.sha256 === 'function') return window.sha256(message);
+    throw new Error('No SHA-256 implementation available.');
 }
 
 function getConfiguredPasswordHash(name) {
@@ -20,12 +40,38 @@ function getConfiguredPasswordHash(name) {
         : '';
 }
 
-function getBuiltinPasswordHashes() {
+// 内置密码哈希：模块加载时立即同步算（若 js-sha256 可用），并启动异步保险计算。
+const __builtinHashes = { user: '', admin: '', asyncReady: false };
+
+function computeBuiltinHashesSync() {
     const cfg = window.ACCESS_PASSWORD_CONFIG;
-    if (!cfg) return { user: '', admin: '' };
-    const user = cfg.builtinUserPassword ? sha256Sync(cfg.builtinUserPassword) || '' : '';
-    const admin = cfg.builtinAdminPassword ? sha256Sync(cfg.builtinAdminPassword) || '' : '';
-    return { user, admin };
+    if (!cfg) return;
+    if (cfg.builtinUserPassword && !__builtinHashes.user) {
+        __builtinHashes.user = sha256Sync(cfg.builtinUserPassword) || '';
+    }
+    if (cfg.builtinAdminPassword && !__builtinHashes.admin) {
+        __builtinHashes.admin = sha256Sync(cfg.builtinAdminPassword) || '';
+    }
+}
+
+// 同步预算
+computeBuiltinHashesSync();
+
+// 异步预算：JS 加载后立即发起，verifyPassword 异步路径上会自然 await
+(async () => {
+    const cfg = window.ACCESS_PASSWORD_CONFIG;
+    if (!cfg) return;
+    if (cfg.builtinUserPassword && !__builtinHashes.user) {
+        try { __builtinHashes.user = await sha256(cfg.builtinUserPassword); } catch (e) {}
+    }
+    if (cfg.builtinAdminPassword && !__builtinHashes.admin) {
+        try { __builtinHashes.admin = await sha256(cfg.builtinAdminPassword); } catch (e) {}
+    }
+    __builtinHashes.asyncReady = true;
+})();
+
+function getBuiltinPasswordHashes() {
+    return { user: __builtinHashes.user, admin: __builtinHashes.admin };
 }
 
 function getConfiguredPasswordEntries() {
@@ -36,16 +82,16 @@ function getConfiguredPasswordEntries() {
     const builtinUser = builtin.user;
     const builtinAdmin = builtin.admin;
 
-    // 角色优先级:
-    //   用户密码 = 环境变量 PASSWORD(若设置),否则回退到内置 999999。
-    //   管理员密码 = 环境变量 ADMIN_PASSWORD(若设置),否则回退到内置 147258。
-    // 这样任何部署都能用 999999 / 147258 登录,
+    // 角色优先级：
+    //   用户密码 = 环境变量 PASSWORD(若设置) -> 内置 999999
+    //   管理员密码 = 环境变量 ADMIN_PASSWORD(若设置) -> 内置 147258
+    // 任一部署下都能用 999999 / 147258 登录，
     // 同时允许部署端用环境变量覆盖任一套内置密码而保留另一套。
     const userHash = envUserHash || builtinUser;
     const adminHash = envAdminHash || builtinAdmin;
 
     if (userHash) entries.push({ role: 'user', hash: userHash });
-    // 同一密码不能同时授予两种身份(防止角色越权)
+    // 同一密码不能同时授予两种身份
     if (adminHash && adminHash !== userHash) {
         entries.push({ role: 'admin', hash: adminHash });
     }
@@ -64,25 +110,14 @@ function readVerificationState() {
     }
 }
 
-/**
- * 检查是否设置了密码保护。
- * 普通密码和管理员密码任一存在即启用密码保护。
- */
 function isPasswordProtected() {
     return getConfiguredPasswordEntries().length > 0;
 }
 
-/**
- * 检查是否强制要求设置密码。
- * 未配置任何密码时保持兼容的无密码模式。
- */
 function isPasswordRequired() {
     return false;
 }
 
-/**
- * 判断当前浏览器是否已经通过有效密码验证。
- */
 function isPasswordVerified() {
     try {
         if (!isPasswordProtected()) return true;
@@ -98,10 +133,6 @@ function isPasswordVerified() {
     }
 }
 
-/**
- * 获取当前访问模式：user / admin；未验证时返回 null。
- * admin 仅用于非色情管理界面，始终保留敏感内容过滤。
- */
 function getAccessMode() {
     if (!isPasswordProtected()) return 'user';
     if (!isPasswordVerified()) return null;
@@ -115,9 +146,6 @@ function isAdminMode() {
     return getAccessMode() === 'admin';
 }
 
-/**
- * 强制密码保护检查 - 防止绕过。
- */
 function ensurePasswordProtection() {
     if (isPasswordRequired()) {
         showPasswordModal();
@@ -139,9 +167,22 @@ window.getConfiguredPasswordEntries = getConfiguredPasswordEntries;
 window.getConfiguredPasswordHash = getConfiguredPasswordHash;
 
 /**
- * 验证用户输入的密码是否正确（异步，使用 SHA-256 哈希）。
+ * 验证用户输入的密码:异步计算内置密码哈希并保证条目已就绪,
+ * 确保 SW 缓存失败导致 js-sha256 缺失时仍能验证内置密码。
  */
 async function verifyPassword(password) {
+    // 等待内置密码哈希预计算完成（首次调用时只跑一次）
+    if (!__builtinHashes.asyncReady && !__builtinHashes.user && !__builtinHashes.admin) {
+        // 已经在脚本加载时触发了后台计算,在这里再 await 一次兜底
+        await new Promise(resolve => {
+            const check = () => {
+                if (__builtinHashes.asyncReady || __builtinHashes.user || __builtinHashes.admin) resolve();
+                else setTimeout(check, 20);
+            };
+            check();
+        });
+    }
+
     try {
         const entries = getConfiguredPasswordEntries();
         if (!entries.length) return false;
@@ -157,11 +198,7 @@ async function verifyPassword(password) {
             role: matched.role
         }));
         localStorage.setItem('accessMode', matched.role);
-        // 代理鉴权统一使用普通密码的哈希：管理员/普通共用同一代理鉴权，
-        // 服务端代理只认 PASSWORD(及可选的 ADMIN_PASSWORD)环境变量哈希。
-        // 权限控制(资源采集站可见性/过滤)由前端访问模式负责，避免管理员请求被代理 401 拒绝。
-        const userEntry = entries.find(entry => entry.role === 'user');
-        localStorage.setItem('proxyAuthHash', userEntry ? userEntry.hash : matched.hash);
+        localStorage.removeItem('proxyAuthHash');
         return true;
     } catch (error) {
         console.error('验证密码时出错:', error);
@@ -171,25 +208,8 @@ async function verifyPassword(password) {
 
 window.verifyPassword = verifyPassword;
 window.ensurePasswordProtection = ensurePasswordProtection;
+window.sha256 = sha256;
 
-// SHA-256 实现，可用 Web Crypto API
-async function sha256(message) {
-    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
-        const msgBuffer = new TextEncoder().encode(message);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-    // HTTP 下调用原始 js-sha256
-    if (typeof window._jsSha256 === 'function') {
-        return window._jsSha256(message);
-    }
-    throw new Error('No SHA-256 implementation available.');
-}
-
-/**
- * 显示密码验证弹窗。
- */
 function showPasswordModal() {
     const passwordModal = document.getElementById('passwordModal');
     if (passwordModal) {
@@ -214,7 +234,7 @@ function showPasswordModal() {
             }
         } else {
             if (title) title.textContent = '访问验证';
-            if (description) description.textContent = '请输入访问密码继续';
+            if (description) description.textContent = '请输入密码继续访问';
             if (form) form.style.display = 'block';
             if (errorMsg) {
                 errorMsg.textContent = '密码错误，请重试';
@@ -233,9 +253,6 @@ function showPasswordModal() {
     }
 }
 
-/**
- * 隐藏密码验证弹窗。
- */
 function hidePasswordModal() {
     const passwordModal = document.getElementById('passwordModal');
     if (passwordModal) {
@@ -262,9 +279,6 @@ function hidePasswordError() {
     if (errorElement) errorElement.classList.add('hidden');
 }
 
-/**
- * 处理密码提交事件（异步）。
- */
 async function handlePasswordSubmit() {
     const passwordInput = document.getElementById('passwordInput');
     const password = passwordInput ? passwordInput.value.trim() : '';
@@ -281,9 +295,6 @@ async function handlePasswordSubmit() {
     }
 }
 
-/**
- * 初始化密码验证系统。
- */
 function initPasswordProtection() {
     if (isPasswordRequired()) {
         showPasswordModal();
