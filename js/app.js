@@ -4,6 +4,17 @@
 let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["zuidapi","wujin","piaoling","bfzy","ffzy"]'); // 默认选中资源
 let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
+// —— 搜索模式与默认源 ——
+// searchMode: 'multi'(默认,遍历所有选中源) | 'single'(只查默认源,加快速度)
+let searchMode = JSON.parse(localStorage.getItem('searchMode') || '"multi"');
+// defaultSourceId: 首页与单源模式下的唯一查询源,值为 API key 或 'custom_<index>'
+let defaultSourceId = JSON.parse(localStorage.getItem('defaultSourceId') || 'null');
+
+window.searchMode = searchMode;
+window.defaultSourceId = defaultSourceId;
+window.selectedAPIs = selectedAPIs;
+window.customAPIs = customAPIs;
+
 // 添加当前播放的集数索引
 let currentEpisodeIndex = 0;
 // 添加当前视频的所有集数
@@ -67,9 +78,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
     setupEventListeners();
     applyAccessModeUI();
+    bindSourceModeUI();
+    renderSearchModeUI();
+    ensureDefaultSourceValid();
+    renderDefaultSourceSelect();
     // 初始化后同步过滤开关状态（管理员勾选成人源时禁用过滤）
     setTimeout(checkAdultAPIsSelected, 100);
 });
+
+// 绑定搜索模式 radio 与默认源 select 的事件处理
+function bindSourceModeUI() {
+    const multi = document.getElementById('searchModeMulti');
+    const single = document.getElementById('searchModeSingle');
+    if (multi) multi.addEventListener('change', () => setSearchMode('multi'));
+    if (single) single.addEventListener('change', () => setSearchMode('single'));
+    const select = document.getElementById('defaultSourceSelect');
+    if (select) {
+        select.addEventListener('change', (e) => setDefaultSourceId(e.target.value || null));
+    }
+}
 
 // 过滤掉与当前访问模式不匹配的数据源。
 // 普通模式：剔除资源采集站源；管理员模式：保留全部源。
@@ -439,12 +466,153 @@ function updateSelectedAPIs() {
 
     // 保存到localStorage
     localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
+    window.selectedAPIs = selectedAPIs;
+
+    // 默认源若已失效（不在 selectedAPIs 中），自动降级到第一个普通资源源
+    ensureDefaultSourceValid();
+
+    // 同步默认源下拉框状态
+    renderDefaultSourceSelect();
 
     // 更新显示选中的API数量
     updateSelectedApiCount();
 
     // 数据源变更后清空首页推荐缓存（下次进入强制重新拉取）
     if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
+}
+
+// —— 默认源与搜索模式工具函数 ——
+// 判断一个源 ID 是否为普通资源源（不在资源采集站范围内）
+function isNormalSource(apiId) {
+    if (typeof apiId !== 'string') return false;
+    if (apiId.startsWith('custom_')) {
+        const index = Number(apiId.slice('custom_'.length));
+        if (!Number.isInteger(index) || !customAPIs[index]) return false;
+        return !customAPIs[index].isAdult;
+    }
+    return !!(API_SITES[apiId] && !API_SITES[apiId].adult);
+}
+
+// 某源是否可作为默认源候选：
+// - 管理员模式：任意已配置源都行（含资源采集站源）
+// - 普通模式：仅普通资源源（资源采集站源不可作为默认源）
+function isDefaultSourceCandidate(apiId) {
+    if (typeof apiId !== 'string') return false;
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    if (isAdmin) {
+        if (apiId.startsWith('custom_')) {
+            const index = Number(apiId.slice('custom_'.length));
+            return Number.isInteger(index) && !!customAPIs[index];
+        }
+        return !!API_SITES[apiId];
+    }
+    return isNormalSource(apiId);
+}
+
+// 选取第一个可用默认源（普通模式跳过资源采集站源；管理员模式任意源）
+function pickFirstNormalSource() {
+    if (!Array.isArray(selectedAPIs)) return null;
+    for (const id of selectedAPIs) {
+        if (isDefaultSourceCandidate(id)) return id;
+    }
+    return null;
+}
+
+// 当前生效的默认源：用户设置的、且在选中列表中的可用候选源
+function getEffectiveDefaultSourceId() {
+    if (defaultSourceId && selectedAPIs.includes(defaultSourceId) && isDefaultSourceCandidate(defaultSourceId)) {
+        return defaultSourceId;
+    }
+    return pickFirstNormalSource();
+}
+
+// 保证默认源合法，否则降级到第一个可用默认源
+function ensureDefaultSourceValid() {
+    const effective = getEffectiveDefaultSourceId();
+    if (effective && effective !== defaultSourceId) {
+        setDefaultSourceId(effective);
+    } else if (!effective && defaultSourceId) {
+        setDefaultSourceId(null);
+    }
+    return effective;
+}
+
+// 设置默认源并持久化、刷新 UI 与首页缓存
+function setDefaultSourceId(value) {
+    defaultSourceId = value;
+    localStorage.setItem('defaultSourceId', JSON.stringify(value));
+    window.defaultSourceId = value;
+    if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
+    renderDefaultSourceSelect();
+}
+
+// 切换搜索模式
+function setSearchMode(mode) {
+    if (mode !== 'multi' && mode !== 'single') mode = 'multi';
+    if (mode === searchMode) return;
+    searchMode = mode;
+    localStorage.setItem('searchMode', JSON.stringify(mode));
+    window.searchMode = mode;
+    renderSearchModeUI();
+    // 模式变化可能影响首页（单源模式时首页逻辑也要随之调整）
+    if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
+}
+
+// 搜索时要查询的源列表（单源模式只查默认源，多源模式遍历选中源）
+function getSearchSourceIds() {
+    if (searchMode === 'single') {
+        const def = getEffectiveDefaultSourceId();
+        return def ? [def] : [];
+    }
+    return Array.isArray(selectedAPIs) ? selectedAPIs.slice() : [];
+}
+
+// 渲染默认源下拉框（普通模式仅列普通源；管理员模式额外列出资源采集站源）
+function renderDefaultSourceSelect() {
+    const select = document.getElementById('defaultSourceSelect');
+    if (!select) return;
+    const effective = getEffectiveDefaultSourceId();
+    const candidates = (Array.isArray(selectedAPIs) ? selectedAPIs : [])
+        .filter(id => isDefaultSourceCandidate(id));
+    const prev = select.value || effective;
+    select.innerHTML = '';
+    if (!candidates.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '请先选择可用的数据源';
+        select.appendChild(opt);
+        select.disabled = true;
+        return;
+    }
+    select.disabled = false;
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    for (const id of candidates) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        const info = (typeof getCustomApiInfo === 'function' && id.startsWith('custom_'))
+            ? getCustomApiInfo(Number(id.slice('custom_'.length)))
+            : (API_SITES[id] || { name: id });
+        opt.textContent = info.name || id;
+        // 管理员模式下资源采集站源加后缀标识，便于区分
+        if (isAdmin && !isNormalSource(id)) opt.textContent += '（资源站）';
+        select.appendChild(opt);
+    }
+    const desired = prev && candidates.includes(prev) ? prev : effective;
+    if (desired) select.value = desired;
+}
+
+// 同步搜索模式 UI(radio + 描述文案)
+function renderSearchModeUI() {
+    const multi = document.getElementById('searchModeMulti');
+    const single = document.getElementById('searchModeSingle');
+    if (multi) multi.checked = searchMode === 'multi';
+    if (single) single.checked = searchMode === 'single';
+    const desc = document.getElementById('searchModeDesc');
+    if (desc) {
+        desc.textContent = searchMode === 'single'
+            ? '所有搜索与首页只查询默认源,加载更快'
+            : '搜索遍历所有选中源(首页仍只查询默认源)';
+    }
 }
 
 // 更新选中的API数量显示
@@ -801,7 +969,10 @@ async function search() {
 
         // 从所有选中的API源搜索
         let allResults = [];
-        const searchPromises = selectedAPIs.map(apiId => 
+        const searchSourceIds = typeof getSearchSourceIds === 'function'
+            ? getSearchSourceIds()
+            : selectedAPIs;
+        const searchPromises = searchSourceIds.map(apiId =>
             searchByAPIAndKeyWord(apiId, query)
         );
 

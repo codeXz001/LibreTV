@@ -60,11 +60,24 @@ const HOME_CACHE_PREFIX = 'homePoolCache_v1:';
 const HOME_CACHE_TTL = 5 * 60 * 1000; // 与内存池 TTL 一致
 
 // 按分类返回应使用的数据源：
-// 资源采集站分类只取标记为 adult 的源；其他分类排除 adult 源（普通用户不混入）。
+// 资源采集站分类只取标记为 adult 的源；
+// 其他分类统一只从「默认源」拉取（避免首页数据在多源不一致时搜索不到），
+// 若默认源失效则降级到第一个可用默认源。
+// 普通模式默认源只会是普通资源源；管理员模式默认源可为资源采集站源。
 function getHomeSourceIds(catId) {
     const allSrcIds = Array.isArray(selectedAPIs) ? selectedAPIs : [];
     if (catId === 'adult') return allSrcIds.filter(id => isAdultSource(id));
-    return allSrcIds.filter(id => !isAdultSource(id));
+
+    const defaultId = (typeof getEffectiveDefaultSourceId === 'function')
+        ? getEffectiveDefaultSourceId()
+        : null;
+    if (defaultId && allSrcIds.includes(defaultId)) {
+        // 管理员模式：默认源允许是资源采集站源；普通模式：getEffectiveDefaultSourceId 已保证为普通源
+        return [defaultId];
+    }
+    // 默认源失效或缺失：降级到第一个普通资源源
+    const fallback = allSrcIds.find(id => !isAdultSource(id));
+    return fallback ? [fallback] : [];
 }
 
 function getHomeSourceSignature(srcIds) {

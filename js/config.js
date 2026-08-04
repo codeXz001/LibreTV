@@ -304,9 +304,14 @@ const CUSTOM_API_CONFIG = {
 // 内置默认：999999 普通用户（过滤强制开启、不展示资源采集站）；
 //           147258 管理员（展示资源采集站、可关闭过滤）。
 // 与 Android 端 www/js/app-config.js 的 APP_PASSWORD_HASH(=999999) 保持一致。
+// userHash / adminHash 为预计算好的 SHA-256 常量，password.js 优先直接采用，
+// 即使 js-sha256 与 Web Crypto 都不可用，内置密码条目依然存在（验证输入仍需要
+// 某个 SHA-256 实现，由 js/sha256-fallback.js 保证同步可用）。
 const ACCESS_PASSWORD_CONFIG = {
     builtinUserPassword: '999999',   // 普通访问密码
     builtinAdminPassword: '147258',  // 管理员访问密码
+    userHash: '937377f056160fc4b15e0b770c67136a5f03c15205b4d3bf918268fefa2c6d0a',  // = sha256('999999')
+    adminHash: '7a2ec40ff8a1247c532309355f798a779e00acff579c63eec3636ffb2902c1ac',  // = sha256('147258')
     envUserKey: 'PASSWORD',
     envAdminKey: 'ADMIN_PASSWORD',
 };

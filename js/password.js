@@ -5,19 +5,23 @@
 // 即便浏览器因 Service Worker 缓存等原因导致 js-sha256 库加载失败，
 // 这里仍可纯走 Web Crypto API（crypto.subtle.digest）完成验证。
 
-// 尝试保留 js-sha256 作为高性能同步路径的兜底（HTTP 上无法用 Web Crypto 时尤其重要）
+// 尝试保留 js-sha256 作为高性能同步路径的兜底（HTTP 上无法用 Web Crypto 时尤其重要）。
+// 注意：本文件加载完成后绝不覆盖 window.sha256（见文件末尾），
+// 否则下面 sha256() 的回退分支会递归调用被覆盖的异步版本自身，导致栈溢出。
 if (typeof window._jsSha256 !== 'function' && typeof window.sha256 === 'function') {
     window._jsSha256 = window.sha256;
 }
 
 // 同步 SHA-256：优先走 js-sha256
 function sha256Sync(message) {
-    if (typeof window._jsSha256 === 'function') return window._jsSha256(message);
-    if (typeof window.sha256 === 'function') return window.sha256(message);
-    return null;
+    let hash = null;
+    if (typeof window._jsSha256 === 'function') hash = window._jsSha256(message);
+    else if (typeof window.sha256 === 'function') hash = window.sha256(message);
+    // 类型校验：只接受 64 位 hex 字符串，防止误收到 Promise 等非哈希值污染内置缓存
+    return typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash) ? hash : null;
 }
 
-// 异步 SHA-256：优先走 Web Crypto API（永远可用）
+// 异步 SHA-256：优先走 Web Crypto API
 async function sha256(message) {
     if (window.crypto && crypto.subtle && crypto.subtle.digest) {
         try {
@@ -28,8 +32,9 @@ async function sha256(message) {
             // 某些特殊环境下 Web Crypto 不可用，降级到 js-sha256
         }
     }
+    // 回退分支只认脚本加载时捕获的同步实现（_jsSha256），
+    // 绝不调用 window.sha256 —— 它可能已被覆盖为异步版本，会导致无限递归。
     if (typeof window._jsSha256 === 'function') return window._jsSha256(message);
-    if (typeof window.sha256 === 'function') return window.sha256(message);
     throw new Error('No SHA-256 implementation available.');
 }
 
@@ -71,7 +76,12 @@ computeBuiltinHashesSync();
 })();
 
 function getBuiltinPasswordHashes() {
-    return { user: __builtinHashes.user, admin: __builtinHashes.admin };
+    // 优先使用预计算常量（sha256-fallback.js 与 Web Crypto 都不可用时的最后防线），
+    // 其次使用脚本加载时同步/异步计算好的缓存值。
+    const cfg = window.ACCESS_PASSWORD_CONFIG;
+    const user = (cfg && cfg.userHash) || __builtinHashes.user || '';
+    const admin = (cfg && cfg.adminHash) || __builtinHashes.admin || '';
+    return { user, admin };
 }
 
 function getConfiguredPasswordEntries() {
@@ -171,13 +181,14 @@ window.getConfiguredPasswordHash = getConfiguredPasswordHash;
  * 确保 SW 缓存失败导致 js-sha256 缺失时仍能验证内置密码。
  */
 async function verifyPassword(password) {
-    // 等待内置密码哈希预计算完成（首次调用时只跑一次）
-    if (!__builtinHashes.asyncReady && !__builtinHashes.user && !__builtinHashes.admin) {
+    // 等待内置密码哈希预计算完成（首次调用时只跑一次；带超时兜底，避免任何环境下手动阻塞）
+    if (!__builtinHashes.asyncReady) {
         // 已经在脚本加载时触发了后台计算,在这里再 await 一次兜底
         await new Promise(resolve => {
+            const timer = setTimeout(resolve, 1500);
             const check = () => {
-                if (__builtinHashes.asyncReady || __builtinHashes.user || __builtinHashes.admin) resolve();
-                else setTimeout(check, 20);
+                if (__builtinHashes.asyncReady) { clearTimeout(timer); resolve(); }
+                else setTimeout(check, 10);
             };
             check();
         });
@@ -208,7 +219,9 @@ async function verifyPassword(password) {
 
 window.verifyPassword = verifyPassword;
 window.ensurePasswordProtection = ensurePasswordProtection;
-window.sha256 = sha256;
+// 注意：不覆盖 window.sha256（保留 js-sha256 同步版本，供 sha256() 回退分支与
+// 其他依赖同步哈希的代码使用）；异步版本以独立名称导出，避免递归自调用。
+window.sha256Async = sha256;
 
 function showPasswordModal() {
     const passwordModal = document.getElementById('passwordModal');

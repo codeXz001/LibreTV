@@ -123,6 +123,34 @@
                 </div>
             </div>
 
+            <!-- 搜索模式与默认源 -->
+            <div class="settings-card">
+                <label class="settings-card-title">搜索模式</label>
+                <div class="space-y-2 text-sm text-gray-300">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="radio" name="searchMode" id="searchModeMulti" value="multi" class="mt-1 form-radio text-blue-600 bg-[#222] border-[#333]">
+                        <div>
+                            <div class="text-gray-200">多源模式（默认）</div>
+                            <div class="text-xs text-gray-500">搜索遍历所有选中源，覆盖更全；首页仅从默认源拉取。</div>
+                        </div>
+                    </label>
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="radio" name="searchMode" id="searchModeSingle" value="single" class="mt-1 form-radio text-blue-600 bg-[#222] border-[#333]">
+                        <div>
+                            <div class="text-gray-200">单源模式</div>
+                            <div class="text-xs text-gray-500">所有搜索仅查询默认源，加载更快。</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <label class="settings-card-title">默认源</label>
+                <p class="text-xs text-gray-500 mb-2">首页与单源模式下的唯一查询源。普通模式仅可选普通资源源；管理员模式额外可选资源采集站源。</p>
+                <select id="defaultSourceSelect" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded text-sm"
+                        aria-label="默认数据源"></select>
+            </div>
+
             <!-- 自定义 API 管理 -->
             <div class="settings-card">
                 <div class="flex justify-between items-center mb-2">
@@ -382,8 +410,11 @@
     </script>
 
     <!-- 引入纯 JS sha256（HTTP 下依然可用）；defer 不阻塞首屏解析，
-         原始 js-sha256 的保存逻辑见 password.js 顶部（按文档顺序执行） -->
+         原始 js-sha256 的保存逻辑见 password.js 顶部（按文档顺序执行）。
+         sha256-fallback.js 内联同一实现，独立于 libs/ 目录 ——
+         即使 libs/sha256.min.js 因 SW 缓存破损加载失败，同步哈希依旧可用 -->
     <script src="libs/sha256.min.js" defer></script>
+    <script src="js/sha256-fallback.js" defer></script>
     <script src="js/config.js" defer></script>
     <script src="js/proxy-auth.js" defer></script>
     <script src="js/customer_site.js" defer></script>

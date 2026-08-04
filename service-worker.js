@@ -9,7 +9,7 @@
 //
 // 版本号变更即整体换新缓存；旧缓存自动清理。
 
-const CACHE_VERSION = 'libretv-v5';
+const CACHE_VERSION = 'libretv-v6';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const IMG_CACHE = `${CACHE_VERSION}-images`;

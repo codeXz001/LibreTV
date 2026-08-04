@@ -1,6 +1,7 @@
 // 浏览器端密码回归测试 - 防止 SW 缓存导致密码失效
-// 模拟场景: js-sha256 库加载失败(老 SW 缓存命中了破损的 sha256.min.js),
-// 验证仍可通过 Web Crypto API 完成内置密码验证。
+// 模拟场景: libs/sha256.min.js 库加载失败(老 SW 缓存命中了破损的 sha256.min.js),
+// 此时 js/sha256-fallback.js(内联同一实现,独立于 libs/ 目录)提供同步哈希,
+// 验证两个内置密码在 libs 资源损坏下仍能登录。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -13,6 +14,7 @@ import { TextEncoder, TextDecoder } from 'node:util';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 function loadWithoutSyncSha256Lib({ envUserHash = '', envAdminHash = '', storage = new Map() } = {}) {
+  const fallback = fs.readFileSync(join(root, 'js/sha256-fallback.js'), 'utf8');
   const config = fs.readFileSync(join(root, 'js/config.js'), 'utf8');
   const psw = fs.readFileSync(join(root, 'js/password.js'), 'utf8');
   const storageMap = new Map(storage);
@@ -46,37 +48,31 @@ function loadWithoutSyncSha256Lib({ envUserHash = '', envAdminHash = '', storage
   if (envUserHash) sandbox.window.__ENV__.PASSWORD = envUserHash;
   if (envAdminHash) sandbox.window.__ENV__.ADMIN_PASSWORD = envAdminHash;
   const ctx = vm.createContext(sandbox);
-  // 故意跳过 libs/sha256.min.js,模拟 SW 缓存破损 / 加载失败
+  // 故意跳过 libs/sha256.min.js,模拟 libs 目录 SW 缓存破损 / 加载失败;
+  // 但 js/sha256-fallback.js(独立于 libs/)正常加载 —— 与真实页面结构一致
+  vm.runInContext(fallback, ctx, { filename: 'js/sha256-fallback.js' });
   vm.runInContext(config, ctx, { filename: 'js/config.js' });
   vm.runInContext(psw, ctx, { filename: 'js/password.js' });
   return sandbox.window;
 }
 
-test('password.js: js-sha256 缺失时, 仍能通过 Web Crypto 验证内置 999999 / 147258', async () => {
+test('password.js: libs/sha256.min.js 缺失时, fallback + Web Crypto 仍能验证内置 999999 / 147258', async () => {
   const win = loadWithoutSyncSha256Lib({
     envUserHash: '',
     envAdminHash: '',
   });
-  // 同步路径不可用(没有 js-sha256):
-  // - window._jsSha256: undefined
-  // - sha256Sync(): 必须返回 null(从 window 看就是 undefined)
-  assert.equal(win._jsSha256, undefined);
-  assert.equal(win.sha256Sync?.('test') ?? null, null);
-  // password.js 内部声明了 sha256(异步 Web Crypto),所以 window.sha256 是函数。
+  // libs/sha256.min.js 缺失,但 fallback 提供了同步哈希:
+  // - window.sha256: 由 sha256-fallback.js 提供(同步函数,未被 password.js 覆盖)
   assert.equal(typeof win.sha256, 'function');
-  // entries 应借助异步预算填充
-  for (let i = 0; i < 50; i++) {
-    if (win.getConfiguredPasswordEntries().length > 0) break;
-    await new Promise(r => setTimeout(r, 20));
-  }
-  const entries = win.getConfiguredPasswordEntries();
-  assert.equal(entries.length, 2, 'js-sha256 缺失下,内置密码仍应有 2 个条目');
+  // entries 应借助同步预算立即就绪
+  const entries0 = win.getConfiguredPasswordEntries();
+  assert.equal(entries0.length, 2, 'libs 损坏下,内置密码仍应有 2 个条目');
   const userHash = await win.sha256('999999');
   const adminHash = await win.sha256('147258');
-  assert.ok(entries.find(e => e.role === 'user' && e.hash === userHash),
-    '用户条目哈希应等于 999999 的 Web Crypto 哈希');
-  assert.ok(entries.find(e => e.role === 'admin' && e.hash === adminHash),
-    '管理员条目哈希应等于 147258 的 Web Crypto 哈希');
+  assert.ok(entries0.find(e => e.role === 'user' && e.hash === userHash),
+    '用户条目哈希应等于 999999 的哈希');
+  assert.ok(entries0.find(e => e.role === 'admin' && e.hash === adminHash),
+    '管理员条目哈希应等于 147258 的哈希');
 
   // 验证流程端到端
   assert.equal(await win.verifyPassword('999999'), true);

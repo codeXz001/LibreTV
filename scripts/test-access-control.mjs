@@ -103,8 +103,8 @@ test('home.js: 普通模式过滤强制开启，管理员模式按设置', () =>
 
 test('home.js: 资源采集站分类只拉 adult 源，普通分类排除 adult 源', () => {
   const sb = loadHome();
-  assert.deepEqual(sb.getHomeSourceIds('adult'), ['xrbsp']);
-  assert.deepEqual(sb.getHomeSourceIds('tv'), ['ffzy']);
+  assert.equal(JSON.stringify(sb.getHomeSourceIds('adult')), '["xrbsp"]');
+  assert.equal(JSON.stringify(sb.getHomeSourceIds('tv')), '["ffzy"]');
 });
 
 test('home.js: mergeAndFilter 对资源采集站分类跳过过滤', () => {
