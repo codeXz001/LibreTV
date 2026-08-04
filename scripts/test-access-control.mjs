@@ -126,3 +126,63 @@ test('内置密码哈希与明文匹配', async () => {
   assert.equal(adminHash.length, 64);
   assert.notEqual(userHash, adminHash, '两套密码哈希必须不同');
 });
+
+test('password.js: 部署端 PASSWORD 已注入, ADMIN_PASSWORD 未注入, 内置 147258 兜底', async () => {
+  const { loadPasswordRuntime } = await import('./_password-runtime-loader.mjs');
+  const win = await loadPasswordRuntime({
+    envUserHash: createHash('sha256').update('custom-user-pass').digest('hex'),
+    envAdminHash: '',
+    storage: new Map(),
+  });
+  const entries = win.getConfiguredPasswordEntries();
+  const userHash = createHash('sha256').update('999999').digest('hex');
+  const adminHash = createHash('sha256').update('147258').digest('hex');
+  assert.equal(entries.length, 2, '应同时有用户和管理员两项');
+  assert.ok(entries.find(e => e.role === 'user' && e.hash !== userHash),
+    '用户密码哈希应为部署端 PASSWORD,不是内置 999999');
+  assert.ok(entries.find(e => e.role === 'admin' && e.hash === adminHash),
+    '管理员密码哈希应为内置 147258');
+
+  assert.equal(await win.verifyPassword('custom-user-pass'), true);
+  assert.equal(win.getAccessMode(), 'user');
+  assert.equal(await win.verifyPassword('147258'), true);
+  assert.equal(win.getAccessMode(), 'admin');
+  assert.equal(await win.verifyPassword('999999'), false,
+    '999999 不在 entries 里时应被拒');
+  assert.equal(await win.verifyPassword('wrong-password'), false);
+});
+
+test('password.js: ADMIN_PASSWORD 环境变量可覆盖内置 147258', async () => {
+  const { loadPasswordRuntime } = await import('./_password-runtime-loader.mjs');
+  const customAdmin = createHash('sha256').update('super-admin').digest('hex');
+  const win = await loadPasswordRuntime({
+    envUserHash: '',
+    envAdminHash: customAdmin,
+    storage: new Map(),
+  });
+  const adminHash = createHash('sha256').update('147258').digest('hex');
+  const userHash = createHash('sha256').update('999999').digest('hex');
+  const entries = win.getConfiguredPasswordEntries();
+  assert.ok(entries.find(e => e.role === 'admin' && e.hash === customAdmin));
+  assert.equal(entries.find(e => e.hash === adminHash), undefined);
+  assert.equal(await win.verifyPassword('super-admin'), true);
+  assert.equal(win.getAccessMode(), 'admin');
+  assert.equal(await win.verifyPassword('147258'), false);
+  assert.equal(await win.verifyPassword('999999'), true, '内置 999999 仍可登录');
+  assert.equal(win.getAccessMode(), 'user');
+});
+
+test('password.js: 用户与管理员密码哈希相同时, 仅授予用户身份', async () => {
+  const { loadPasswordRuntime } = await import('./_password-runtime-loader.mjs');
+  const sameHash = createHash('sha256').update('overlap').digest('hex');
+  const win = await loadPasswordRuntime({
+    envUserHash: sameHash,
+    envAdminHash: sameHash,
+    storage: new Map(),
+  });
+  const entries = win.getConfiguredPasswordEntries();
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].role, 'user');
+  assert.equal(await win.verifyPassword('overlap'), true);
+  assert.equal(win.getAccessMode(), 'user');
+});

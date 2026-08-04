@@ -32,20 +32,22 @@ function getConfiguredPasswordEntries() {
     const entries = [];
     const envUserHash = getConfiguredPasswordHash('PASSWORD');
     const envAdminHash = getConfiguredPasswordHash('ADMIN_PASSWORD');
-    if (envUserHash) entries.push({ role: 'user', hash: envUserHash });
-    // 普通密码优先：两套环境变量误配为同一密码时，不授予管理员模式。
-    if (envAdminHash && envAdminHash !== envUserHash) {
-        entries.push({ role: 'admin', hash: envAdminHash });
-    }
-
-    // 内置密码兜底：环境变量未配置时，使用内置 999999 / 147258。
-    // 仅当对应角色还没有有效哈希时才启用，避免与部署端配置冲突。
     const builtin = getBuiltinPasswordHashes();
-    const hasUser = entries.some(e => e.role === 'user');
-    const hasAdmin = entries.some(e => e.role === 'admin');
-    if (!hasUser && builtin.user) entries.push({ role: 'user', hash: builtin.user });
-    if (!hasAdmin && builtin.admin && builtin.admin !== builtin.user) {
-        entries.push({ role: 'admin', hash: builtin.admin });
+    const builtinUser = builtin.user;
+    const builtinAdmin = builtin.admin;
+
+    // 角色优先级:
+    //   用户密码 = 环境变量 PASSWORD(若设置),否则回退到内置 999999。
+    //   管理员密码 = 环境变量 ADMIN_PASSWORD(若设置),否则回退到内置 147258。
+    // 这样任何部署都能用 999999 / 147258 登录,
+    // 同时允许部署端用环境变量覆盖任一套内置密码而保留另一套。
+    const userHash = envUserHash || builtinUser;
+    const adminHash = envAdminHash || builtinAdmin;
+
+    if (userHash) entries.push({ role: 'user', hash: userHash });
+    // 同一密码不能同时授予两种身份(防止角色越权)
+    if (adminHash && adminHash !== userHash) {
+        entries.push({ role: 'admin', hash: adminHash });
     }
     return entries;
 }
@@ -133,6 +135,8 @@ window.isPasswordRequired = isPasswordRequired;
 window.isPasswordVerified = isPasswordVerified;
 window.getAccessMode = getAccessMode;
 window.isAdminMode = isAdminMode;
+window.getConfiguredPasswordEntries = getConfiguredPasswordEntries;
+window.getConfiguredPasswordHash = getConfiguredPasswordHash;
 
 /**
  * 验证用户输入的密码是否正确（异步，使用 SHA-256 哈希）。
