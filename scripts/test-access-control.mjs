@@ -109,12 +109,18 @@ test('home.js: 资源采集站分类只拉 adult 源，普通分类排除 adult 
 
 test('home.js: mergeAndFilter 对资源采集站分类跳过过滤', () => {
   const sb = loadHome({ isAdmin: true, yellowFilterEnabled: 'true' });
-  const raw = { list: [{ vod_name: '示例', type_name: '伦理片', vod_id: 1, source_code: 'xrbsp' }] };
-  const merged = sb.mergeAndFilter([raw], true); // skipYellow
+  const rawAdult = { list: [{ vod_name: '示例', type_name: '伦理片', vod_id: 1, source_code: 'xrbsp' }] };
+  const merged = sb.mergeAndFilter([rawAdult], true); // skipYellow
   assert.equal(merged.length, 1, 'skipYellow 时伦理片不被过滤');
 
-  const filtered = sb.mergeAndFilter([raw], false);
-  assert.equal(filtered.length, 0, '未 skipYellow 时伦理片被过滤');
+  // 资源站源的内容始终不被敏感过滤拦截（管理员模式）
+  const adultKept = sb.mergeAndFilter([rawAdult], false);
+  assert.equal(adultKept.length, 1, '资源站源内容不被敏感过滤');
+
+  // 普通源的内容仍受敏感过滤控制（未 skipYellow 时被过滤）
+  const rawNormal = { list: [{ vod_name: '示例', type_name: '伦理片', vod_id: 2, source_code: 'ffzy' }] };
+  const filtered = sb.mergeAndFilter([rawNormal], false);
+  assert.equal(filtered.length, 0, '普通源伦理片在未 skipYellow 时被过滤');
 });
 
 test('内置密码哈希与明文匹配', async () => {

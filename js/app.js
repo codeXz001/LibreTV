@@ -172,6 +172,9 @@ function applyAccessModeUI() {
         if (toggleWrap) toggleWrap.classList.add('hidden');
         addAdultAPI();
     }
+    // 自定义源表单的「资源采集站」勾选框：普通模式隐藏（防止添加资源站自定义源绕过隔离）
+    const adultCheckboxWrap = document.getElementById('customApiIsAdultWrap');
+    if (adultCheckboxWrap) adultCheckboxWrap.classList.toggle('hidden', !admin);
     if (modeStatus) {
         modeStatus.textContent = admin ? '管理员模式' : '普通模式';
         modeStatus.className = admin
@@ -398,7 +401,10 @@ function updateCustomApi(index) {
     const name = nameInput.value.trim();
     let url = urlInput.value.trim();
     const detail = detailInput ? detailInput.value.trim() : '';
-    const isAdult = isAdultInput ? isAdultInput.checked : false;
+    // 普通模式强制非资源站源：即使表单被篡改/历史残留，也不会新增资源站自定义源
+    const isAdult = (typeof window.isAdminMode === 'function' && window.isAdminMode())
+        ? (isAdultInput ? isAdultInput.checked : false)
+        : false;
     if (!name || !url) {
         showToast('请输入API名称和链接', 'warning');
         return;
@@ -672,7 +678,10 @@ function addCustomApi() {
     const name = nameInput.value.trim();
     let url = urlInput.value.trim();
     const detail = detailInput ? detailInput.value.trim() : '';
-    const isAdult = isAdultInput ? isAdultInput.checked : false;
+    // 普通模式强制非资源站源（防止绕过模式隔离）
+    const isAdult = (typeof window.isAdminMode === 'function' && window.isAdminMode())
+        ? (isAdultInput ? isAdultInput.checked : false)
+        : false;
     if (!name || !url) {
         showToast('请输入API名称和链接', 'warning');
         return;

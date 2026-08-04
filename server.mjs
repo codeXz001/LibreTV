@@ -125,6 +125,32 @@ const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX = 60;
 const MEDIA_EXT_RE = /\.(m3u8|ts|mp4|flv|m4s|mp3|aac|png|jpg|jpeg|webp|gif|svg|ico)$/i;
 
+// —— 上游连接复用：同源多次请求共享 TCP/TLS 连接，显著降低搜索/详情/分片的建连开销 ——
+import { Agent as HttpAgent } from 'http';
+import { Agent as HttpsAgent } from 'https';
+const httpAgent = new HttpAgent({ keepAlive: true, maxSockets: 32 });
+const httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 32 });
+
+// —— API 响应缓存：搜索/详情接口(ac=videolist)命中直接返回,避免重复请求上游 ——
+const apiCache = new Map(); // targetUrl -> { ts, body }
+const API_CACHE_TTL = 60 * 1000; // 60 秒
+const API_CACHE_MAX = 300;       // 上限,防内存膨胀
+const API_CACHE_RE = /[?&]ac=(videolist|detail|list)(&|$)/i;
+
+function getApiCache(targetUrl) {
+  const hit = apiCache.get(targetUrl);
+  if (hit && Date.now() - hit.ts < API_CACHE_TTL) return hit.body;
+  if (hit) apiCache.delete(targetUrl);
+  return null;
+}
+function setApiCache(targetUrl, body) {
+  if (apiCache.size >= API_CACHE_MAX) {
+    const oldestKey = apiCache.keys().next().value;
+    if (oldestKey) apiCache.delete(oldestKey);
+  }
+  apiCache.set(targetUrl, { ts: Date.now(), body });
+}
+
 function isRateLimited(ip) {
   const now = Date.now();
   // 定期清理过期条目，防止 Map 无限增长
@@ -160,6 +186,15 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
 
     const targetUrl = decodeURIComponent(req.params.encodedUrl);
 
+    // API 缓存命中：直接返回（ac=videolist 搜索/详情类短 TTL 缓存）
+    if (API_CACHE_RE.test(targetUrl)) {
+      const cached = getApiCache(targetUrl);
+      if (cached) {
+        res.setHeader('X-Proxy-Cache', 'HIT');
+        return res.type('json').send(cached);
+      }
+    }
+
     // 非媒体类代理请求限流（防刷 API；媒体分片不受限，避免误伤播放）
     if (!MEDIA_EXT_RE.test(targetUrl)) {
       const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
@@ -190,6 +225,9 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
           responseType: 'stream',
           timeout: config.timeout,
           headers: { 'User-Agent': config.userAgent },
+          // 同源连接复用，避免每个搜索/分片请求都重新建 TCP+TLS
+          httpAgent,
+          httpsAgent,
         });
         // 阶段 2.11：先看 Content-Length，超限立即拒绝
         const cl = checkContentLength(upstream.headers, DEFAULT_MAX_RESPONSE_BYTES);
@@ -227,13 +265,28 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     // 阶段 2.11：流式传输时也累计字节，触发超限立即断开
     let received = 0;
     let aborted = false;
+    // API 缓存收集（仅 ac=videolist 类、成功、非媒体）
+    const isCacheableApi = API_CACHE_RE.test(targetUrl) && response.status >= 200 && response.status < 300;
+    const cacheChunks = [];
     response.data.on('data', (chunk) => {
       received += chunk.length;
+      if (isCacheableApi && !aborted && received <= 512 * 1024) {
+        cacheChunks.push(chunk);
+      }
       if (received > DEFAULT_MAX_RESPONSE_BYTES && !aborted) {
         aborted = true;
         log(`上游响应超过 ${DEFAULT_MAX_RESPONSE_BYTES} 字节，主动断开: ${targetUrl}`);
         response.data.destroy?.();
         if (!res.writableEnded) res.end();
+      }
+    });
+    response.data.on('end', () => {
+      // 完整成功且未超限：写入 API 缓存
+      if (isCacheableApi && !aborted) {
+        try {
+          const body = Buffer.concat(cacheChunks).toString('utf-8');
+          if (body.length > 0 && body.length <= 512 * 1024) setApiCache(targetUrl, body);
+        } catch (e) { /* 缓存失败不影响响应 */ }
       }
     });
     response.data.pipe(res);

@@ -3,18 +3,18 @@
 // 职责:分类 tab 渲染与切换、"正在热映"横滑条 + "最新更新"网格、
 //       多源聚合、池化分页、视图切换底部导航。
 //
-// 数据方案(实测结论,2026-08-03):
-//   - 采集站最新流(ac=videolist 无 t 参数)里几乎只有剧集/综艺/动漫,
-//     电影占比极低(960 条仅 19 条),且 t= 分类参数各源行为不一致(名称/ID 均不可靠)
-//   - 因此:tv/anime/variety 走"采集站最新流 + type_name 匹配过滤 + 池化分页"
-//           movie 走豆瓣热门/最新接口(真实电影推荐)
+// 数据方案(2026-08-04 起):
+//   - 所有分类(电影/电视剧/动漫/综艺)统一从「默认源」拉取最新内容,
+//     不做 type_name 分类匹配过滤(直接展示源的最新/最火内容);
+//   - 资源采集站分类(仅管理员可见)拉取全部标记 adult 的源;
+//   - 首页不再使用豆瓣数据。
 //
 // 依赖:config.js(API_SITES/HOME_CATEGORIES/HOME_CONFIG)、search.js(mapLimit)、
 //       ui.js(懒加载/图片回退/Toast)、app.js(selectedAPIs/aggregateItemMap/
-//       showAggregatedDetails/normalizeTitle)、douban.js(fetchDoubanData)
+//       showAggregatedDetails/normalizeTitle)
 // =============================================================
 
-// ---- 分类匹配规则:源站 type_name 均为二级分类(如"欧美剧/日韩动漫/大陆综艺") ----
+// ---- 分类匹配规则(保留备用:当前首页不做 type_name 过滤,均展示源最新内容) ----
 const HOME_TYPE_MATCH = {
     tv:      t => /剧/.test(t) && !/动漫|动画|漫剧|短剧/.test(t),
     anime:   t => /动漫|动画|漫剧/.test(t),
@@ -42,19 +42,6 @@ let homeCurrentCatId = 'movie';
 let homeReqSeq = 0;            // 切分类竞态序号:过期响应丢弃
 let homeLoadingMore = {};      // { [catId]: boolean } 分页防重入
 let __sentinelObserver = null; // 滚动哨兵观察器(全局一个)
-
-// movie 分类(豆瓣)分页状态
-let homeMoviePage = 1;
-let homeMovieHasMore = false;
-
-// 带超时的请求包装:超时返回 fallback，不阻塞首屏（用于豆瓣等可能走备用链的慢请求）
-function withTimeout(promise, ms, fallback) {
-    let timer;
-    const timeout = new Promise(resolve => {
-        timer = setTimeout(() => resolve(fallback), ms);
-    });
-    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 const HOME_CACHE_PREFIX = 'homePoolCache_v1:';
 const HOME_CACHE_TTL = 5 * 60 * 1000; // 与内存池 TTL 一致
@@ -251,9 +238,10 @@ async function fetchSourceCategoryPage(srcId, catId, page) {
             return { items: [], pagecount: 1 };
         }
 
-        const matcher = HOME_TYPE_MATCH[catId];
+        // 首页不做 type_name 分类匹配过滤，直接展示源的最新内容。
+        // 普通源与资源站源均不过滤（用户要求"对应源最火内容即可"）。
         const items = data.list
-            .filter(it => it && it.vod_name && matcher && matcher(it.type_name || ''))
+            .filter(it => it && it.vod_name)
             .map(it => ({
                 ...it,
                 source_name: apiName,
@@ -300,7 +288,10 @@ function mergeAndFilter(rawLists, skipYellow) {
         if (!res || !Array.isArray(res.list)) return;
         res.list.forEach(item => {
             if (!item || !item.vod_name) return;
-            if (yellowFilter && banned.some(kw => (item.type_name || '').includes(kw))) return;
+            // 资源站源的内容不受敏感过滤影响（普通模式下 selectedAPIs 已排除资源站源，
+            // 只有管理员模式才会出现，故不会破坏普通模式的内容安全）。
+            const fromAdultSource = isAdultSource(item.source_code);
+            if (yellowFilter && !fromAdultSource && banned.some(kw => (item.type_name || '').includes(kw))) return;
             const key = normalizeTitle(item.vod_name);
             if (!key) return;
             if (!groups.has(key)) groups.set(key, []);
@@ -335,25 +326,6 @@ function mergeAndFilter(rawLists, skipYellow) {
         return (at ? 1 : 0) - (bt ? 1 : 0);
     });
     return merged;
-}
-
-// ---- 豆瓣(电影分类)----
-function doubanMovieUrl(tag, limit, start) {
-    return `https://movie.douban.com/j/search_subjects?type=movie&tag=${tag}&sort=recommend&page_limit=${limit}&page_start=${start}`;
-}
-// 豆瓣条目映射为通用条目字段
-function mapDoubanItem(d) {
-    return {
-        vod_name: d.title,
-        vod_pic: d.cover,
-        type_name: '电影',
-        vod_remarks: d.rate ? '★ ' + d.rate : '',
-        vod_time: '',
-        source_name: '豆瓣',
-        source_code: 'douban',
-        vod_id: d.id,
-        douban_url: d.url
-    };
 }
 
 // ---- 渲染 ----
@@ -603,49 +575,8 @@ async function loadCategory(catId) {
         return;
     }
 
-    if (catId === 'movie') {
-        await loadMovieCategory(seq, hotSection, hotContainer, latestContainer, sentinel);
-    } else {
-        await loadPoolCategory(seq, catId, hotSection, hotContainer, latestContainer, sentinel);
-    }
-}
-
-// 电影分类:豆瓣热门(热映条)+ 豆瓣最新(网格)
-async function loadMovieCategory(seq, hotSection, hotContainer, latestContainer, sentinel) {
-    // 两个豆瓣请求各自加短超时：任一源慢/失败不拖住整个首屏（主请求+备用链最长可达 20s）
-    const HOT_TIMEOUT = 6000;
-    // 两个请求同时发出；热门先到先渲染热映条，最新网格随后到位，首屏内容更快出现
-    const hotPromise = withTimeout(fetchDoubanData(doubanMovieUrl('热门', HOME_CONFIG.hotStripLimit, 0)), HOT_TIMEOUT, null);
-    const latestPromise = withTimeout(fetchDoubanData(doubanMovieUrl('最新', LATEST_BATCH, 0)), HOT_TIMEOUT, null);
-
-    const hotRes = await hotPromise;
-    if (seq !== homeReqSeq) return;
-
-    const hotItems = (hotRes && hotRes.subjects) ? hotRes.subjects.map(mapDoubanItem) : [];
-    if (hotItems.length) {
-        renderHotStrip(hotContainer, hotItems, true);
-        if (hotSection) hotSection.classList.remove('hidden');
-    } else if (hotSection) {
-        hotSection.remove();
-    }
-
-    const latestRes = await latestPromise;
-    if (seq !== homeReqSeq) return;
-    const latestItems = (latestRes && latestRes.subjects) ? latestRes.subjects.map(mapDoubanItem) : [];
-
-    latestContainer.innerHTML = '';
-    if (latestItems.length) {
-        renderLatestGrid(latestContainer, latestItems, true);
-        homeMoviePage = 1;
-        homeMovieHasMore = latestItems.length >= LATEST_BATCH;
-        if (homeMovieHasMore && sentinel) observeSentinel(sentinel, 'movie');
-        else if (sentinel) sentinel.outerHTML = '<div class="loadmore-end">已加载全部</div>';
-    } else {
-        renderEmpty(latestContainer, '暂无内容，请稍后刷新重试');
-        if (sentinel) sentinel.remove();
-    }
-    observeLazyImages(latestContainer);
-    observeLazyImages(hotContainer);
+    // 所有分类(含电影)统一从默认源拉取最新内容,不再使用豆瓣。
+    await loadPoolCategory(seq, catId, hotSection, hotContainer, latestContainer, sentinel);
 }
 
 // 采集站分类:池化加载(tv/anime/variety/adult)
@@ -746,11 +677,7 @@ async function loadMoreLatest(catId) {
         const sentinel = document.getElementById('sentinel-' + catId);
         if (!container || !sentinel || !container.isConnected) return; // 已切走分类:丢弃
 
-        if (catId === 'movie') {
-            await loadMoreMovie(container, sentinel);
-            return;
-        }
-
+        // 所有分类(含电影)统一走池化分页,不再走豆瓣分页。
         const pool = homePools[catId];
         if (!pool) return;
 
@@ -786,30 +713,10 @@ function finishPool(catId, sentinel, pool) {
     if (pool) pool.hasMore = false;
 }
 
-// 豆瓣电影分页(page_start 递增)
-async function loadMoreMovie(container, sentinel) {
-    const nextPage = homeMoviePage + 1;
-    const data = await fetchDoubanData(doubanMovieUrl('最新', LATEST_BATCH, nextPage * LATEST_BATCH));
-    const items = (data && data.subjects) ? data.subjects.map(mapDoubanItem) : [];
-    if (items.length) {
-        container.insertAdjacentHTML('beforeend',
-            items.map(item => buildPosterCardHtml(item, { searchKey: true })).join(''));
-        observeLazyImages(container);
-        homeMoviePage = nextPage;
-        homeMovieHasMore = items.length >= LATEST_BATCH;
-    } else {
-        homeMovieHasMore = false;
-    }
-    if (homeMovieHasMore) observeSentinel(sentinel, 'movie');
-    else finishPool('movie', sentinel, null);
-}
-
 // 源配置变更时清空首页缓存(下次进入强制重新拉取)
 function invalidateHomeCache() {
     Object.keys(homePools).forEach(k => delete homePools[k]);
     clearPersistedHomePools();
-    homeMoviePage = 1;
-    homeMovieHasMore = false;
     homeReqSeq++; // 使在途请求结果作废
 }
 

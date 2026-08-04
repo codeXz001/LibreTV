@@ -187,6 +187,13 @@ const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
+    // 尽早对播放地址域名做预连接（解析 URL 参数，不等 initPlayer），
+    // 与播放器库下载并行，缩短首帧建连时间。
+    try {
+        const earlyUrl = new URLSearchParams(window.location.search).get('url');
+        if (earlyUrl) hintPlaybackOrigin(earlyUrl);
+    } catch (e) { /* 忽略 */ }
+
     // 先检查用户是否已通过密码验证
     if (!isPasswordVerified()) {
         // 隐藏加载提示
@@ -514,22 +521,27 @@ async function initPlayer(videoUrl) {
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 30 * 1000 * 1000,
+        // 适度加大缓冲上限,减少弱网下的播放卡顿
+        maxBufferLength: 60,
+        maxMaxBufferLength: 180,
+        maxBufferSize: 60 * 1000 * 1000,
         maxBufferHole: 0.5,
         fragLoadingMaxRetry: 6,
-        fragLoadingMaxRetryTimeout: 64000,
+        // 分片失败 20s 内重试后放弃,快速切换到可用播放,避免长时间卡在坏分片
+        fragLoadingMaxRetryTimeout: 20000,
         fragLoadingRetryDelay: 1000,
         manifestLoadingMaxRetry: 3,
         manifestLoadingRetryDelay: 1000,
         levelLoadingMaxRetry: 4,
         levelLoadingRetryDelay: 1000,
-        startLevel: -1,
-        abrEwmaDefaultEstimate: 500000,
+        // 首屏带宽估计从 0.5Mbps 提到 2Mbps:
+        // ABR 从较高码率起步,避免先播低清再爬升的卡顿感知;实际带宽不足时会自动下调
+        abrEwmaDefaultEstimate: 2000000,
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
         abrMaxWithRealBitrate: true,
+        // 分片并发下载从默认 3 提到 6,加快缓冲(移动端仍受带宽限制自动回落)
+        fragLoadingConcurrent: 6,
         stretchShortVideoTrack: true,
         appendErrorMaxRetry: 5,  // 增加尝试次数
         liveSyncDurationCount: 3,

@@ -96,8 +96,9 @@
 .search-go-btn:hover { filter: brightness(1.08); }
 .search-go-btn:active { transform: scale(0.97); }
 
-/* 最近搜索 */
-.recent-searches { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: center; margin-top: 0.5rem; }
+/* 最近搜索（默认隐藏，聚焦搜索框时展开） */
+.recent-searches { display: none; flex-wrap: wrap; gap: 0.35rem; justify-content: center; margin-top: 0.5rem; }
+.recent-searches.show { display: flex; }
 
 /* =========================================================
    第二行：分类 tab（sticky + 横向滚动 + 胶片齿孔激活态）

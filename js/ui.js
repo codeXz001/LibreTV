@@ -224,6 +224,7 @@ function renderSearchHistory() {
 
     if (history.length === 0) {
         historyContainer.innerHTML = '';
+        historyContainer.classList.remove('show');
         return;
     }
 
@@ -796,6 +797,26 @@ toggleSettings = function(e) {
 
 // 点击外部关闭历史面板
 document.addEventListener('DOMContentLoaded', function() {
+    // 最近搜索：聚焦搜索框时展开，失焦时收起
+    const searchInput = document.getElementById('searchInput');
+    const recentSearches = document.getElementById('recentSearches');
+    if (searchInput && recentSearches) {
+        searchInput.addEventListener('focus', function () {
+            if (getSearchHistory().length > 0) {
+                recentSearches.classList.add('show');
+            }
+        });
+        searchInput.addEventListener('blur', function () {
+            recentSearches.classList.remove('show');
+        });
+        // 点击历史标签时保持输入框焦点，避免先触发 blur 导致面板提前收起
+        recentSearches.addEventListener('mousedown', function (e) {
+            if (e.target.closest('.search-tag')) {
+                e.preventDefault();
+            }
+        });
+    }
+
     document.addEventListener('click', function(e) {
         const historyPanel = document.getElementById('historyPanel');
         const historyButton = document.querySelector('button[onclick="toggleHistory(event)"]');
