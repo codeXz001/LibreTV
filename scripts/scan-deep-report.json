@@ -1,0 +1,778 @@
+{
+  "generatedAt": "2026-08-04T08:03:39.602Z",
+  "useless": [
+    {
+      "key": "msnii",
+      "name": "美少女资源",
+      "api": "https://www.msnii.com/api/json.php",
+      "url": "https://video57.msn17.com/video/20230611/6f229f021c13485849b64afb516cb5ab/index.",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html",
+      "ms": 214,
+      "referer": "www.msnii.com",
+      "looksLikePlaylist": false,
+      "headSample": "<html>\r <head><title>404 Not Found</title></head>\r <body>\r <",
+      "finalUrl": "https://video57.msn17.com/video/20230611/6f229f021c13485849b64afb516cb5ab/index.",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "no-url"
+        },
+        {
+          "i": 1,
+          "verdict": "no-url"
+        },
+        {
+          "i": 2,
+          "verdict": "no-url"
+        },
+        {
+          "i": 3,
+          "verdict": "no-url"
+        },
+        {
+          "i": 4,
+          "verdict": "no-url"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "kxgav",
+      "name": "白嫖资源",
+      "api": "https://www.kxgav.com/api/json.php",
+      "url": "https://video60.bpzy1.com/video/20230805/146e69851b58e9358fc54a58d0194a52/index.",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html",
+      "ms": 890,
+      "referer": "www.kxgav.com",
+      "looksLikePlaylist": false,
+      "headSample": "<html>\r <head><title>404 Not Found</title></head>\r <body>\r <",
+      "finalUrl": "https://video60.bpzy1.com/video/20230805/146e69851b58e9358fc54a58d0194a52/index.",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "no-url"
+        },
+        {
+          "i": 1,
+          "verdict": "no-url"
+        },
+        {
+          "i": 2,
+          "verdict": "no-url"
+        },
+        {
+          "i": 3,
+          "verdict": "no-url"
+        },
+        {
+          "i": 4,
+          "verdict": "no-url"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "xrbsp",
+      "name": "淫水机资源",
+      "api": "https://www.xrbsp.com/api/json.php",
+      "url": "https://video31.avnyg.com/video/20220530/df5c12a709704582abe685da1c8f7e2a/index.",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html",
+      "ms": 225,
+      "referer": "www.xrbsp.com",
+      "looksLikePlaylist": false,
+      "headSample": "<html>\r <head><title>404 Not Found</title></head>\r <body>\r <",
+      "finalUrl": "https://video31.avnyg.com/video/20220530/df5c12a709704582abe685da1c8f7e2a/index.",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "no-url"
+        },
+        {
+          "i": 1,
+          "verdict": "no-url"
+        },
+        {
+          "i": 2,
+          "verdict": "no-url"
+        },
+        {
+          "i": 3,
+          "verdict": "no-url"
+        },
+        {
+          "i": 4,
+          "verdict": "no-url"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "gdlsp",
+      "name": "香奶儿资源",
+      "api": "https://www.gdlsp.com/api/json.php",
+      "url": "https://video13.balecao.com/video/20220121/0d33b13c823736e947e15e3afb260391/inde",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html",
+      "ms": 610,
+      "referer": "www.gdlsp.com",
+      "looksLikePlaylist": false,
+      "headSample": "<html>\r <head><title>404 Not Found</title></head>\r <body>\r <",
+      "finalUrl": "https://video13.balecao.com/video/20220121/0d33b13c823736e947e15e3afb260391/inde",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "no-url"
+        },
+        {
+          "i": 1,
+          "verdict": "no-url"
+        },
+        {
+          "i": 2,
+          "verdict": "no-url"
+        },
+        {
+          "i": 3,
+          "verdict": "no-url"
+        },
+        {
+          "i": 4,
+          "verdict": "no-url"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "pgxdy",
+      "name": "黄AV资源",
+      "api": "https://www.pgxdy.com/api/json.php",
+      "url": "https://video57.hav36.com/video/20230703/d3b62df3d7d54320547a8dba5e6199a9/index.",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html",
+      "ms": 891,
+      "referer": "www.pgxdy.com",
+      "looksLikePlaylist": false,
+      "headSample": "<html>\r <head><title>404 Not Found</title></head>\r <body>\r <",
+      "finalUrl": "https://video57.hav36.com/video/20230703/d3b62df3d7d54320547a8dba5e6199a9/index.",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "no-url"
+        },
+        {
+          "i": 1,
+          "verdict": "no-url"
+        },
+        {
+          "i": 2,
+          "verdict": "no-url"
+        },
+        {
+          "i": 3,
+          "verdict": "no-url"
+        },
+        {
+          "i": 4,
+          "verdict": "no-url"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "ffzy_backup",
+      "name": "非凡采集",
+      "api": "https://cj.ffzyapi.com/api.php/provide/vod",
+      "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html",
+      "ms": 5340,
+      "referer": "cj.ffzyapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head>     <meta http-equiv=\"Content-",
+      "finalUrl": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+          "directUrl": "https://vip.ffzy-play8.com/20250311/492746_e63aa1de/index.m3u8?sign=8af9f65cc63941bafac55832fca205ac"
+        },
+        {
+          "i": 1,
+          "verdict": "dead",
+          "url": "https://vod.feifei-online.com/share/693e0ab1bf7c54ec3b3ac2b1bece040b",
+          "directUrl": ""
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play6.com/share/e23330785f499c128030ab1b7281f37a",
+          "directUrl": "https://vip.ffzy-play6.com/20221206/10196_db8c6067/index.m3u8?sign=3a708731e5e6a5ff083fd88af39d8fc9"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play2.com/share/86b122d4358357d834a87ce618a55de0",
+          "directUrl": "https://vip.ffzy-play2.com/20221119/773_36d2c256/index.m3u8?sign=11fabf13197643504fde59c39ebc87b1"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play7.com/share/71a5c0514ab83382d98154e5a5f9d813",
+          "directUrl": "https://vip.ffzy-play7.com/20221112/3424_514a5815/index.m3u8?sign=572a048929d17467c5c51d0d9829cb83"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "ffzy",
+      "name": "非凡资源",
+      "api": "https://api.ffzyapi.com/api.php/provide/vod",
+      "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html",
+      "ms": 219,
+      "referer": "api.ffzyapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head>     <meta http-equiv=\"Content-",
+      "finalUrl": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+          "directUrl": "https://vip.ffzy-play8.com/20250311/492746_e63aa1de/index.m3u8?sign=8af9f65cc63941bafac55832fca205ac"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://svip.feifei-play.com/share/dad607bdfbee2de4cb4086bcd173758c",
+          "directUrl": "https://svip.feifei-play.com/20250719/22569_dad607bd/index.m3u8?sign=eea6c4400751de682ac8440589b6dbb"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+          "directUrl": "https://vip.ffzy-play8.com/20250311/492746_e63aa1de/index.m3u8?sign=8af9f65cc63941bafac55832fca205ac"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play2.com/share/86b122d4358357d834a87ce618a55de0",
+          "directUrl": "https://vip.ffzy-play2.com/20221119/773_36d2c256/index.m3u8?sign=11fabf13197643504fde59c39ebc87b1"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play8.com/share/b9e4ce50f6c1ba80d31aa4826948a5a6",
+          "directUrl": "https://vip.ffzy-play8.com/20241031/173690_b9e4ce50/index.m3u8?sign=ab763b544220084674504ebaf3fd2c1f"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "dyttzy",
+      "name": "电影天堂",
+      "api": "https://caiji.dyttzyapi.com/api.php/provide/vod",
+      "url": "https://vip.dytt-look.com/share/27deaa87758cc908cf391d0a283ab028",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html",
+      "ms": 847,
+      "referer": "caiji.dyttzyapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head>     <meta http-equiv=\"Content-",
+      "finalUrl": "https://vip.dytt-look.com/share/27deaa87758cc908cf391d0a283ab028",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://vip.dytt-look.com/share/27deaa87758cc908cf391d0a283ab028",
+          "directUrl": "https://vip.dytt-look.com/20250507/767978_27deaa87/index.m3u8?sign=bb6b90913f85f081ebaa857c424244e4"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://vip.dytt-tv.com/share/fe5e7cb609bdbe6d62449d61849c38b0",
+          "directUrl": "https://vip.dytt-tv.com/20250406/7196_fe5e7cb6/index.m3u8?sign=c4c4724b675915509bfcb0fdbc57d951"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://vip.dytt-look.com/share/30b16291dc2c4e0141226c036e9f3fe5",
+          "directUrl": "https://vip.dytt-look.com/20250311/243657_30b16291/index.m3u8?sign=3b898402e2c747840847bec5b82797ba"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://vip.dytt-live.com/share/eefc9e10ebdc4a2333b42b2dbb8f27b6",
+          "directUrl": "https://vip.dytt-live.com/20250321/763_eefc9e10/index.m3u8?sign=84293f30527daa56925f1df4199ed595"
+        },
+        {
+          "i": 4,
+          "verdict": "dead",
+          "url": "https://vip.dytt-film.com/share/5c0e95e193a3987b6a354b3b62180fc0",
+          "directUrl": ""
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "ffzy_m3u8",
+      "name": "非凡M3U8",
+      "api": "https://ffzy5.tv/api.php/provide/vod",
+      "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html",
+      "ms": 171,
+      "referer": "ffzy5.tv",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head>     <meta http-equiv=\"Content-",
+      "finalUrl": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play8.com/share/e63aa1de11560eb55813a273ce14286e",
+          "directUrl": "https://vip.ffzy-play8.com/20250311/492746_e63aa1de/index.m3u8?sign=8af9f65cc63941bafac55832fca205ac"
+        },
+        {
+          "i": 1,
+          "verdict": "dead",
+          "url": "https://vod.feifei-online.com/share/693e0ab1bf7c54ec3b3ac2b1bece040b",
+          "directUrl": ""
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play6.com/share/e23330785f499c128030ab1b7281f37a",
+          "directUrl": "https://vip.ffzy-play6.com/20221206/10196_db8c6067/index.m3u8?sign=3a708731e5e6a5ff083fd88af39d8fc9"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play2.com/share/86b122d4358357d834a87ce618a55de0",
+          "directUrl": "https://vip.ffzy-play2.com/20221119/773_36d2c256/index.m3u8?sign=11fabf13197643504fde59c39ebc87b1"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://vip.ffzy-play7.com/share/71a5c0514ab83382d98154e5a5f9d813",
+          "directUrl": "https://vip.ffzy-play7.com/20221112/3424_514a5815/index.m3u8?sign=572a048929d17467c5c51d0d9829cb83"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "subocaiji",
+      "name": "速播资源",
+      "api": "https://subocaiji.com/api.php/provide/vod",
+      "url": "https://play.subokk.com/play/zbqgRPDe",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 248,
+      "referer": "subocaiji.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://play.subokk.com/play/zbqgRPDe",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://play.subokk.com/play/zbqgRPDe",
+          "directUrl": "https://play.xluuss.com/play/zbqgRPDe/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://play.subokk.com/play/Pe90vDJd",
+          "directUrl": "https://play.xluuss.com/play/Pe90vDJd/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://play.subokk.com/play/9avGwkrb",
+          "directUrl": "https://play.xluuss.com/play/9avGwkrb/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://play.subokk.com/play/9avVvxma",
+          "directUrl": "https://play.xluuss.com/play/9avVvxma/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://play.subokk.com/play/zbq1OjDb",
+          "directUrl": "https://play.xluuss.com/play/zbq1OjDb/index.m3u8"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "xinlang",
+      "name": "新浪资源",
+      "api": "https://api.xinlangapi.com/xinlangapi.php/provide/vod",
+      "url": "https://play.xluuss.com/play/zbqgRPDe",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 232,
+      "referer": "api.xinlangapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://play.xluuss.com/play/zbqgRPDe",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://play.xluuss.com/play/zbqgRPDe",
+          "directUrl": "https://play.xluuss.com/play/zbqgRPDe/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://play.xluuss.com/play/Pe9k11Yb",
+          "directUrl": "https://play.xluuss.com/play/Pe9k11Yb/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://play.xluuss.com/play/Pe90vDJd",
+          "directUrl": "https://play.xluuss.com/play/Pe90vDJd/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://play.xluuss.com/play/9avGwkrb",
+          "directUrl": "https://play.xluuss.com/play/9avGwkrb/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://play.xluuss.com/play/9avVvxma",
+          "directUrl": "https://play.xluuss.com/play/9avVvxma/index.m3u8"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "hhzy",
+      "name": "豪华资源",
+      "api": "https://hhzyapi.com/api.php/provide/vod",
+      "url": "https://play.hhuus.com/play/9avnqXLa",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 243,
+      "referer": "hhzyapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://play.hhuus.com/play/9avnqXLa",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://play.hhuus.com/play/9avnqXLa",
+          "directUrl": "https://play.hhuus.com/play/9avnqXLa/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://play.hhuus.com/play/negmWnrb",
+          "directUrl": "https://play.hhuus.com/play/negmWnrb/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://play.hhuus.com/play/negmyP9b",
+          "directUrl": "https://play.hhuus.com/play/negmyP9b/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://play.hhuus.com/play/negzED6d",
+          "directUrl": "https://play.hhuus.com/play/negzED6d/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://play.hhuus.com/play/9av1WgLe",
+          "directUrl": "https://play.hhuus.com/play/9av1WgLe/index.m3u8"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "hongniu",
+      "name": "红牛资源",
+      "api": "https://www.hongniuzy2.com/api.php/provide/vod",
+      "url": "https://hn.bfvvs.com/play/xbo3RNAb",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 60,
+      "referer": "www.hongniuzy2.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://hn.bfvvs.com/play/xbo3RNAb",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://hn.bfvvs.com/play/xbo3RNAb",
+          "directUrl": "https://hn.bfvvs.com/play/xbo3RNAb/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://hn.bfvvs.com/play/xe7PqpQa",
+          "directUrl": "https://hn.bfvvs.com/play/xe7PqpQa/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://hn.bfvvs.com/play/zbqzo9rd",
+          "directUrl": "https://hn.bfvvs.com/play/zbqzo9rd/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://hn.bfvvs.com/play/zbqNnp2d",
+          "directUrl": "https://hn.bfvvs.com/play/zbqNnp2d/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://hn.bfvvs.com/play/xbo1MYAe",
+          "directUrl": "https://hn.bfvvs.com/play/xbo1MYAe/index.m3u8"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "jinying",
+      "name": "金鹰资源",
+      "api": "https://jyzyapi.com/api.php/provide/vod",
+      "url": "https://hd.ijycnd.com/play/YerjZQBe",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 979,
+      "referer": "jyzyapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://hd.ijycnd.com/play/YerjZQBe",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://hd.ijycnd.com/play/YerjZQBe",
+          "directUrl": "https://hd.ijycnd.com/play/YerjZQBe/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://hd.ijycnd.com/play/Xe0Gj05d",
+          "directUrl": "https://hd.ijycnd.com/play/Xe0Gj05d/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://hd.ijycnd.com/play/DdwJxlwb",
+          "directUrl": "https://hd.ijycnd.com/play/DdwJxlwb/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://hd.ijycnd.com/play/DdwWwyRd",
+          "directUrl": "https://hd.ijycnd.com/play/DdwWwyRd/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://hd.ijycnd.com/play/Yer1P0Bd",
+          "directUrl": "https://hd.ijycnd.com/play/Yer1P0Bd/index.m3u8"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "guangsu",
+      "name": "光速资源",
+      "api": "https://api.guangsuapi.com/api.php/provide/vod",
+      "url": "https://v.gsuus.com/play/mep4wOXe",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 585,
+      "referer": "api.guangsuapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://v.gsuus.com/play/mep4wOXe",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://v.gsuus.com/play/mep4wOXe",
+          "directUrl": "https://v.gsuus.com/play/mep4wOXe/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://v.gsuus.com/play/yb8QrMjd",
+          "directUrl": "https://v.gsuus.com/play/yb8QrMjd/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://v.gsuus.com/play/YerAp66d",
+          "directUrl": "https://v.gsuus.com/play/YerAp66d/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://v.gsuus.com/play/YerOoqEa",
+          "directUrl": "https://v.gsuus.com/play/YerOoqEa/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://v.gsuus.com/play/mep1NgXa",
+          "directUrl": "https://v.gsuus.com/play/mep1NgXa/index.m3u8"
+        }
+      ],
+      "usable": false
+    },
+    {
+      "key": "huya",
+      "name": "虎牙资源",
+      "api": "https://www.huyaapi.com/api.php/provide/vod/at/json",
+      "url": "https://1080p.huyall.com/play/YerjZQBe",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 223,
+      "referer": "www.huyaapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!DOCTYPE html> <html> <head> <meta charset=\"utf-8\"> <meta h",
+      "finalUrl": "https://1080p.huyall.com/play/YerjZQBe",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "page",
+          "url": "https://1080p.huyall.com/play/YerjZQBe",
+          "directUrl": "https://hd.ijycnd.com/play/YerjZQBe/index.m3u8"
+        },
+        {
+          "i": 1,
+          "verdict": "page",
+          "url": "https://1080p.huyall.com/play/Xe0Gj05d",
+          "directUrl": "https://hd.ijycnd.com/play/Xe0Gj05d/index.m3u8"
+        },
+        {
+          "i": 2,
+          "verdict": "page",
+          "url": "https://1080p.huyall.com/play/DdwJxlwb",
+          "directUrl": "https://hd.ijycnd.com/play/DdwJxlwb/index.m3u8"
+        },
+        {
+          "i": 3,
+          "verdict": "page",
+          "url": "https://1080p.huyall.com/play/DdwWwyRd",
+          "directUrl": "https://hd.ijycnd.com/play/DdwWwyRd/index.m3u8"
+        },
+        {
+          "i": 4,
+          "verdict": "page",
+          "url": "https://1080p.huyall.com/play/Yer1P0Bd",
+          "directUrl": "https://hd.ijycnd.com/play/Yer1P0Bd/index.m3u8"
+        }
+      ],
+      "usable": false
+    }
+  ],
+  "usable": [
+    {
+      "key": "iqiyi",
+      "name": "爱奇艺资源",
+      "api": "https://iqiyizyapi.com/api.php/provide/vod",
+      "url": "https://play.ly166.com:65/videos/20250122/6790fbed1353f55eafa5690d/030341/index.",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html; charset=utf-8",
+      "ms": 754,
+      "referer": "iqiyizyapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "404 Not Found",
+      "finalUrl": "https://play.ly166.com:65/videos/20250122/6790fbed1353f55eafa5690d/030341/index.",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "direct",
+          "url": "https://play.ly166.com:65/videos/20250122/6790fbed1353f55eafa5690d/030341/index.m3u8",
+          "directUrl": "https://play.ly166.com:65/videos/20250122/6790fbed1353f55eafa5690d/030341/index.m3u8"
+        }
+      ],
+      "usable": true
+    },
+    {
+      "key": "bdzy",
+      "name": "百度资源",
+      "api": "https://api.apibdzy.com/api.php/provide/vod",
+      "url": "https://b2.bdzybf22.com/videos/202509/05/68ba05708bcb3e095029aef2/664ad7/index.m",
+      "verdict": "打不开",
+      "status": 404,
+      "ct": "text/html; charset=utf-8",
+      "ms": 189,
+      "referer": "api.apibdzy.com",
+      "looksLikePlaylist": false,
+      "headSample": "404 Not Found",
+      "finalUrl": "https://b2.bdzybf22.com/videos/202509/05/68ba05708bcb3e095029aef2/664ad7/index.m",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "direct",
+          "url": "https://b2.bdzybf22.com/videos/202509/05/68ba05708bcb3e095029aef2/664ad7/index.m3u8",
+          "directUrl": "https://b2.bdzybf22.com/videos/202509/05/68ba05708bcb3e095029aef2/664ad7/index.m3u8"
+        }
+      ],
+      "usable": true
+    },
+    {
+      "key": "ruyi",
+      "name": "如意资源",
+      "api": "https://cj.rycjapi.com/api.php/provide/vod",
+      "url": "https://svip.ryplay15.com/share/327af0f71f7acdfd882774225f04775f",
+      "verdict": "非直接流",
+      "status": 200,
+      "ct": "text/html; charset=utf-8",
+      "ms": 557,
+      "referer": "cj.rycjapi.com",
+      "looksLikePlaylist": false,
+      "headSample": "<!doctype html> <html>  <head>     <meta http-equiv=\"Content",
+      "finalUrl": "https://svip.ryplay15.com/share/327af0f71f7acdfd882774225f04775f",
+      "samples": [
+        {
+          "i": 0,
+          "verdict": "direct",
+          "url": "https://svip.ryplay15.com/20251003/10724_d6dcb4eb/index.m3u8",
+          "directUrl": "https://svip.ryplay15.com/20251003/10724_d6dcb4eb/index.m3u8"
+        }
+      ],
+      "usable": true
+    }
+  ]
+}

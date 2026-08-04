@@ -1048,7 +1048,7 @@ function showImportBox(fun) {
                         </svg>
                     </div>
                     <div class="grid gap-2">
-                        <h4 class="text-center text-white-900 text-sm font-medium leading-snug">将配置文件拖到此处，或手动选择文件</h4>
+                        <h4 class="text-center text-white text-sm font-medium leading-snug">将配置文件拖到此处，或手动选择文件</h4>
                     <div class="flex items-center justify-center gap-2">
                         <label>
                             <input type="file" id="ChooseFile" hidden />
