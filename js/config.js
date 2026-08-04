@@ -299,8 +299,21 @@ const CUSTOM_API_CONFIG = {
     adultPropName: 'isAdult' // 用于标记成人内容的属性名
 };
 
-// 受限内容源始终不在用户界面展示
-const HIDE_BUILTIN_ADULT_APIS = true;
+// ===== 访问密码配置 =====
+// 优先级：环境变量(PASSWORD / ADMIN_PASSWORD) > 内置默认密码。
+// 内置默认：999999 普通用户（过滤强制开启、不展示资源采集站）；
+//           147258 管理员（展示资源采集站、可关闭过滤）。
+// 与 Android 端 www/js/app-config.js 的 APP_PASSWORD_HASH(=999999) 保持一致。
+const ACCESS_PASSWORD_CONFIG = {
+    builtinUserPassword: '999999',   // 普通访问密码
+    builtinAdminPassword: '147258',  // 管理员访问密码
+    envUserKey: 'PASSWORD',
+    envAdminKey: 'ADMIN_PASSWORD',
+};
+
+// 受限内容源是否在界面展示：由访问模式控制（管理员可见，普通用户隐藏），
+// 此处仅作兜底开关，实际展示逻辑在 app.js applyAccessModeUI / addAdultAPI。
+const HIDE_BUILTIN_ADULT_APIS = false;
 
 // ===== 首页分类推荐配置 =====
 // tags 为该分类的候选采集站分类名（按序 fallback）：
@@ -310,6 +323,8 @@ const HOME_CATEGORIES = [
     { id: 'tv',      name: '电视剧', tags: ['电视剧'] },
     { id: 'anime',   name: '动漫',   tags: ['动漫', '日本动画', '动画片'] },
     { id: 'variety', name: '综艺',   tags: ['综艺'] },
+    // 资源采集站分类：仅管理员模式可见（home.js 按 catId 隔离源、跳过过滤）
+    { id: 'adult',   name: '资源采集站', tags: ['伦理片', '福利', '无码', '有码', '成人'] },
 ];
 
 // 黄色内容过滤的分类黑名单（app.js 搜索与 home.js 首页推荐共用，单一事实源）
@@ -347,6 +362,8 @@ window.HOME_CATEGORIES = HOME_CATEGORIES;
 window.HOME_RESOURCE_NAV = HOME_RESOURCE_NAV;
 window.BANNED_TYPE_NAMES = BANNED_TYPE_NAMES;
 window.HOME_CONFIG = HOME_CONFIG;
+window.ACCESS_PASSWORD_CONFIG = ACCESS_PASSWORD_CONFIG;
+window.HIDE_BUILTIN_ADULT_APIS = HIDE_BUILTIN_ADULT_APIS;
 
 // ===== 首屏预连接（preconnect / dns-prefetch）=====
 // 【2026-08-03 修正】原实现给每个资源站 API 域名都加 preconnect + dns-prefetch，实测证明是无效开销：

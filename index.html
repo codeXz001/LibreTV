@@ -117,8 +117,8 @@
                     <span>已选API数量：<span id="selectedApiCount" class="text-white">0</span></span>
                     <span id="siteStatus" class="ml-2"></span>
                 </div>
-                <div id="adminSourceHealth" class="mt-3 hidden">
-                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="btn-blue w-full">检测普通数据源</button>
+                <div class="mt-3">
+                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="btn-blue w-full">检测全部数据源</button>
                     <div id="sourceHealthList" class="mt-2 max-h-40 overflow-y-auto space-y-1 hidden" aria-live="polite"></div>
                 </div>
             </div>
@@ -136,8 +136,9 @@
                     <input type="text" id="customApiName" placeholder="API名称" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
                     <input type="text" id="customApiUrl" placeholder="https://abc.com" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
                     <input type="text" id="customApiDetail" placeholder="detail地址（可选）" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
-                    <div class="flex items-center mb-2" id="customApiModeNote">
-                        <span class="text-xs text-gray-500">仅支持普通资源源</span>
+                    <div class="flex items-center mb-2">
+                        <input type="checkbox" id="customApiIsAdult" class="form-checkbox h-4 w-4 text-pink-500 bg-[#222] border border-[#333]">
+                        <label for="customApiIsAdult" class="ml-2 text-xs text-pink-400">资源采集站</label>
                     </div>
                     <div class="flex space-x-2">
                         <button onclick="addCustomApi()" class="btn-blue px-3 py-1 rounded text-xs">添加</button>

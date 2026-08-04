@@ -40,8 +40,10 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedAPIs = ["ffzy", "jszy", "lzzy", "wujin"];
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
 
-        // 敏感内容过滤固定开启，不提供关闭入口
-        localStorage.setItem('yellowFilterEnabled', 'true');
+        // 敏感内容过滤默认开启（管理员可关闭，普通模式强制开启）
+        if (!localStorage.getItem('yellowFilterEnabled')) {
+            localStorage.setItem('yellowFilterEnabled', 'true');
+        }
         localStorage.setItem(PLAYER_CONFIG.adFilteringStorage, 'true');
 
         // 默认启用豆瓣功能
@@ -56,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
     renderSearchHistory();
 
     const yellowFilterToggle = document.getElementById('yellowFilterToggle');
-    if (yellowFilterToggle) yellowFilterToggle.checked = true;
+    if (yellowFilterToggle) yellowFilterToggle.checked = localStorage.getItem('yellowFilterEnabled') === 'true';
 
     const adFilterToggle = document.getElementById('adFilterToggle');
     if (adFilterToggle) {
@@ -65,40 +67,84 @@ document.addEventListener('DOMContentLoaded', function () {
 
     setupEventListeners();
     applyAccessModeUI();
+    // 初始化后同步过滤开关状态（管理员勾选成人源时禁用过滤）
+    setTimeout(checkAdultAPIsSelected, 100);
 });
 
-// 过滤掉历史配置、导入配置或旧版缓存中的受限数据源。
+// 过滤掉与当前访问模式不匹配的数据源。
+// 普通模式：剔除资源采集站源；管理员模式：保留全部源。
 function sanitizeSelectedAPIs() {
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
     const before = JSON.stringify(selectedAPIs);
     selectedAPIs = (Array.isArray(selectedAPIs) ? selectedAPIs : []).filter(apiId => {
         if (typeof apiId !== 'string') return false;
         if (apiId.startsWith('custom_')) {
             const index = Number(apiId.slice('custom_'.length));
-            return Number.isInteger(index) && customAPIs[index] && !customAPIs[index].isAdult;
+            if (!Number.isInteger(index) || !customAPIs[index]) return false;
+            return isAdmin || !customAPIs[index].isAdult;
         }
-        return API_SITES[apiId] && !API_SITES[apiId].adult;
+        if (!API_SITES[apiId]) return false;
+        return isAdmin || !API_SITES[apiId].adult;
     });
     if (JSON.stringify(selectedAPIs) !== before) {
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
     }
 }
 
-// 普通模式与管理员模式都强制启用敏感内容过滤；不提供可关闭入口。
+// 访问模式切换后，把选中源与当前模式对齐：
+// 管理员模式自动补选资源采集站源；普通模式剔除资源采集站源。
+function reconcileAdultSourcesByMode() {
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    const adultKeys = Object.keys(API_SITES).filter(k => API_SITES[k] && API_SITES[k].adult);
+    const changed = (() => {
+        if (isAdmin) {
+            const missing = adultKeys.filter(k => !selectedAPIs.includes(k));
+            if (!missing.length) return false;
+            selectedAPIs.push(...missing);
+            return true;
+        }
+        const before = selectedAPIs.length;
+        selectedAPIs = selectedAPIs.filter(k => {
+            if (adultKeys.includes(k)) return false;
+            if (k.startsWith('custom_')) {
+                const idx = Number(k.slice('custom_'.length));
+                return !(customAPIs[idx] && customAPIs[idx].isAdult);
+            }
+            return true;
+        });
+        return selectedAPIs.length !== before;
+    })();
+    if (changed) {
+        localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
+        if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
+    }
+}
+
+// 按访问模式应用界面状态：
+// - 管理员模式：显示敏感过滤开关（可关闭）、展示资源采集站分组；
+// - 普通模式：过滤强制开启、隐藏过滤开关、隐藏资源采集站分组。
 function applyAccessModeUI() {
+    const admin = typeof window.isAdminMode === 'function' && window.isAdminMode();
     const toggle = document.getElementById('yellowFilterToggle');
     const toggleWrap = document.getElementById('sensitiveFilterToggleWrap');
-    const adminTools = document.getElementById('adminSourceHealth');
     const modeStatus = document.getElementById('accessModeStatus');
-    const admin = typeof window.isAdminMode === 'function' && window.isAdminMode();
 
-    localStorage.setItem('yellowFilterEnabled', 'true');
-    if (toggle) {
-        toggle.checked = true;
-        toggle.disabled = true;
-        toggle.setAttribute('aria-disabled', 'true');
+    if (admin) {
+        // 管理员：显示过滤开关；开关可用性由 checkAdultAPIsSelected 管理（选中成人源时禁用）
+        if (toggle) toggle.removeAttribute('aria-disabled');
+        if (toggleWrap) toggleWrap.classList.remove('hidden');
+        addAdultAPI();
+    } else {
+        // 普通用户：过滤强制开启，隐藏开关与资源采集站分组
+        localStorage.setItem('yellowFilterEnabled', 'true');
+        if (toggle) {
+            toggle.checked = true;
+            toggle.disabled = true;
+            toggle.setAttribute('aria-disabled', 'true');
+        }
+        if (toggleWrap) toggleWrap.classList.add('hidden');
+        addAdultAPI();
     }
-    if (toggleWrap) toggleWrap.classList.add('hidden');
-    if (adminTools) adminTools.classList.toggle('hidden', !admin);
     if (modeStatus) {
         modeStatus.textContent = admin ? '管理员模式' : '普通模式';
         modeStatus.className = admin
@@ -107,7 +153,14 @@ function applyAccessModeUI() {
     }
 }
 
-document.addEventListener('passwordVerified', applyAccessModeUI);
+// 密码验证通过后：对齐选中源、重渲染 API 列表、应用界面状态。
+document.addEventListener('passwordVerified', function () {
+    reconcileAdultSourcesByMode();
+    initAPICheckboxes();
+    renderCustomAPIsList();
+    checkAdultAPIsSelected(); // 管理员补选成人源后自动关闭过滤
+    applyAccessModeUI();
+});
 
 // 初始化API复选框
 function initAPICheckboxes() {
@@ -153,44 +206,123 @@ function initAPICheckboxes() {
     applyAccessModeUI();
 }
 
-// 兼容旧调用：受限内容源不加入配置界面。
+// 添加资源采集站分组：仅管理员模式可见（普通模式强制隐藏）。
 function addAdultAPI() {
-    const adultdiv = document.getElementById('adultdiv');
-    if (adultdiv) adultdiv.remove();
+    const container = document.getElementById('apiCheckboxes');
+    if (!container) return;
+
+    // 先移除旧分组，避免重复渲染
+    const old = document.getElementById('adultdiv');
+    if (old) old.remove();
+
+    // 仅管理员模式 + 未强制隐藏时展示
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    if (!isAdmin || HIDE_BUILTIN_ADULT_APIS) return;
+
+    const adultdiv = document.createElement('div');
+    adultdiv.id = 'adultdiv';
+    adultdiv.className = 'grid grid-cols-2 gap-2';
+    const adultTitle = document.createElement('div');
+    adultTitle.className = 'api-group-title adult';
+    adultTitle.textContent = '资源采集站';
+    adultdiv.appendChild(adultTitle);
+
+    Object.keys(API_SITES).forEach(apiKey => {
+        const api = API_SITES[apiKey];
+        if (!api.adult) return;
+
+        const checked = selectedAPIs.includes(apiKey);
+        const checkbox = document.createElement('div');
+        checkbox.className = 'flex items-center';
+        checkbox.innerHTML = `
+            <input type="checkbox" id="api_${apiKey}"
+                   class="form-checkbox h-3 w-3 text-blue-600 bg-[#222] border border-[#333] api-adult"
+                   ${checked ? 'checked' : ''}
+                   data-api="${apiKey}">
+            <label for="api_${apiKey}" class="ml-1 text-xs text-pink-400 truncate">${api.name}</label>
+        `;
+        adultdiv.appendChild(checkbox);
+        checkbox.querySelector('input').addEventListener('change', function () {
+            updateSelectedAPIs();
+            checkAdultAPIsSelected();
+        });
+    });
+    container.appendChild(adultdiv);
 }
 
-// 兼容旧调用：敏感内容过滤始终开启且不可关闭。
+// 检查是否有资源采集站源被选中：管理员模式下选中时禁用敏感过滤开关。
 function checkAdultAPIsSelected() {
-    addAdultAPI();
-    applyAccessModeUI();
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    const yellowFilterToggle = document.getElementById('yellowFilterToggle');
+    if (!yellowFilterToggle) return;
+
+    // 普通模式：过滤强制开启，无需继续判断
+    if (!isAdmin) {
+        applyAccessModeUI();
+        return;
+    }
+
+    const adultBuiltin = document.querySelectorAll('#apiCheckboxes .api-adult:checked');
+    const customAdult = document.querySelectorAll('#customApisList .api-adult:checked');
+    const hasAdultSelected = adultBuiltin.length > 0 || customAdult.length > 0;
+
+    if (hasAdultSelected) {
+        yellowFilterToggle.checked = false;
+        yellowFilterToggle.disabled = true;
+        localStorage.setItem('yellowFilterEnabled', 'false');
+        const container = yellowFilterToggle.closest('div');
+        if (container) {
+            const parent = container.parentNode;
+            if (parent) parent.classList.add('filter-disabled');
+            const desc = parent ? parent.querySelector('p.filter-description') : null;
+            if (desc) desc.innerHTML = '<strong class="text-pink-300">选中资源采集站时无法启用此过滤</strong>';
+        }
+    } else {
+        yellowFilterToggle.disabled = false;
+        yellowFilterToggle.removeAttribute('aria-disabled');
+        const container = yellowFilterToggle.closest('div');
+        if (container) {
+            const parent = container.parentNode;
+            if (parent) parent.classList.remove('filter-disabled');
+            const desc = parent ? parent.querySelector('p.filter-description') : null;
+            if (desc) desc.innerHTML = '过滤"伦理片"等敏感内容';
+        }
+    }
 }
 
-// 渲染自定义API列表
+// 渲染自定义API列表（普通模式隐藏标记为资源采集站的自定义源）
 function renderCustomAPIsList() {
     const container = document.getElementById('customApisList');
     if (!container) return;
 
-    if (customAPIs.length === 0) {
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    const visible = isAdmin ? customAPIs : customAPIs.filter(api => !api.isAdult);
+
+    if (visible.length === 0) {
         container.innerHTML = '<p class="text-xs text-gray-500 text-center my-2">未添加自定义API</p>';
         return;
     }
 
     container.innerHTML = '';
-    customAPIs.forEach((api, index) => {
+    customAPIs
+        .map((api, rawIndex) => ({ api, rawIndex }))
+        .filter(entry => isAdmin || !entry.api.isAdult)
+        .forEach(({ api, rawIndex: index }) => {
         const apiItem = document.createElement('div');
         apiItem.className = 'flex items-center justify-between p-1 mb-1 bg-[#222] rounded';
-        const textColorClass = 'text-white';
+        const textColorClass = api.isAdult ? 'text-pink-400' : 'text-white';
+        const adultTag = api.isAdult ? '<span class="text-xs text-pink-400 mr-1">(18+)</span>' : '';
         // 新增 detail 地址显示
         const detailLine = api.detail ? `<div class="text-xs text-gray-400 truncate">detail: ${api.detail}</div>` : '';
         apiItem.innerHTML = `
             <div class="flex items-center flex-1 min-w-0">
                 <input type="checkbox" id="custom_api_${index}"
-                       class="form-checkbox h-3 w-3 text-blue-600 mr-1"
+                       class="form-checkbox h-3 w-3 text-blue-600 mr-1 ${api.isAdult ? 'api-adult' : ''}"
                        ${selectedAPIs.includes('custom_' + index) ? 'checked' : ''}
                        data-custom-index="${index}">
                 <div class="flex-1 min-w-0">
                     <div class="text-xs font-medium ${textColorClass} truncate">
-                        ${api.name}
+                        ${adultTag}${api.name}
                     </div>
                     <div class="text-xs text-gray-500 truncate">${api.url}</div>
                     ${detailLine}
@@ -239,7 +371,7 @@ function updateCustomApi(index) {
     const name = nameInput.value.trim();
     let url = urlInput.value.trim();
     const detail = detailInput ? detailInput.value.trim() : '';
-    const isAdult = false;
+    const isAdult = isAdultInput ? isAdultInput.checked : false;
     if (!name || !url) {
         showToast('请输入API名称和链接', 'warning');
         return;
@@ -372,7 +504,7 @@ function addCustomApi() {
     const name = nameInput.value.trim();
     let url = urlInput.value.trim();
     const detail = detailInput ? detailInput.value.trim() : '';
-    const isAdult = false;
+    const isAdult = isAdultInput ? isAdultInput.checked : false;
     if (!name || !url) {
         showToast('请输入API名称和链接', 'warning');
         return;
@@ -1264,10 +1396,6 @@ async function measureAndSortSources(items) {
 
 // Q2：检测全部内置数据源可用性（并发 4，wd=test 轻量请求，8s 超时）
 async function checkAllSources() {
-    if (typeof window.isAdminMode === 'function' && !window.isAdminMode()) {
-        showToast('仅管理员模式可检测数据源', 'warning');
-        return;
-    }
     const btn = document.getElementById('checkSourcesBtn');
     const list = document.getElementById('sourceHealthList');
     if (!list) return;
@@ -1275,7 +1403,9 @@ async function checkAllSources() {
     list.classList.remove('hidden');
     list.innerHTML = '<div class="text-xs text-gray-500 text-center py-1">正在检测...</div>';
 
-    const keys = Object.keys(API_SITES || {}).filter(key => !API_SITES[key].adult);
+    // 管理员模式检测全部源；普通模式只检测普通源
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    const keys = Object.keys(API_SITES || {}).filter(key => isAdmin || !API_SITES[key].adult);
     const results = [];
     await mapLimit(keys, 4, async (key) => {
         const site = API_SITES[key];

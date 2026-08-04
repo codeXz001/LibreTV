@@ -19,6 +19,8 @@ const HOME_TYPE_MATCH = {
     tv:      t => /剧/.test(t) && !/动漫|动画|漫剧|短剧/.test(t),
     anime:   t => /动漫|动画|漫剧/.test(t),
     variety: t => /综艺/.test(t),
+    // 资源采集站分类:源隔离已保证只拉 adult 源,内容全部接受,不再按 type_name 过滤
+    adult:   () => true,
 };
 
 // 判断某源是否为资源采集站源(内置 adult:true 或自定义 isAdult)
@@ -57,8 +59,11 @@ function withTimeout(promise, ms, fallback) {
 const HOME_CACHE_PREFIX = 'homePoolCache_v1:';
 const HOME_CACHE_TTL = 5 * 60 * 1000; // 与内存池 TTL 一致
 
-function getHomeSourceIds() {
+// 按分类返回应使用的数据源：
+// 资源采集站分类只取标记为 adult 的源；其他分类排除 adult 源（普通用户不混入）。
+function getHomeSourceIds(catId) {
     const allSrcIds = Array.isArray(selectedAPIs) ? selectedAPIs : [];
+    if (catId === 'adult') return allSrcIds.filter(id => isAdultSource(id));
     return allSrcIds.filter(id => !isAdultSource(id));
 }
 
@@ -126,7 +131,7 @@ function restoreHomePool(catId, srcIds) {
             hasMore: !!cached.hasMore,
             ts: cached.ts,
         };
-        pool.merged = mergeAndFilter([{ list: pool.items }]);
+        pool.merged = mergeAndFilter([{ list: pool.items }], catId === 'adult');
         homePools[catId] = pool;
         return pool;
     } catch (error) {
@@ -169,11 +174,13 @@ function initPool(catId) {
     return pool;
 }
 
-// 渲染分类 tab 行
+// 渲染分类 tab 行（资源采集站分类仅管理员模式可见）
 function renderCategoryTabs() {
     const row = document.getElementById('catTabs');
     if (!row) return;
-    row.innerHTML = (HOME_CATEGORIES || []).map(cat => `
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    const cats = (HOME_CATEGORIES || []).filter(cat => isAdmin || cat.id !== 'adult');
+    row.innerHTML = cats.map(cat => `
         <button class="cat-tab${cat.id === homeCurrentCatId ? ' active' : ''}" data-cat-id="${cat.id}" type="button">${cat.name}</button>
     `).join('');
 }
@@ -181,6 +188,12 @@ function renderCategoryTabs() {
 // 切换分类:更新激活态并加载该分类内容
 function switchCategory(catId) {
     if (!HOME_CATEGORIES.some(c => c.id === catId)) return;
+    // 普通模式不允许进入资源采集站分类
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    if (catId === 'adult' && !isAdmin) {
+        if (typeof showToast === 'function') showToast('请使用管理员密码访问', 'warning');
+        return;
+    }
     homeCurrentCatId = catId;
     document.querySelectorAll('#catTabs .cat-tab').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.catId === catId);
@@ -255,10 +268,19 @@ async function fetchSourceCategoryRange(srcId, catId, from, to) {
     return { items, pagecount, toPage: to };
 }
 
+// 敏感内容过滤是否生效：
+// 普通模式强制开启；管理员模式按用户设置（localStorage yellowFilterEnabled）。
+function isYellowFilterActive() {
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    if (!isAdmin) return true;
+    return localStorage.getItem('yellowFilterEnabled') === 'true';
+}
+
 // 合并过滤:敏感内容过滤 + 标题归一化去重 + 写入聚合详情 map
-function mergeAndFilter(rawLists) {
+// skipYellow=true 时跳过过滤(资源采集站分类专用)
+function mergeAndFilter(rawLists, skipYellow) {
     const banned = (typeof BANNED_TYPE_NAMES !== 'undefined') ? BANNED_TYPE_NAMES : [];
-    const yellowFilter = true;
+    const yellowFilter = !skipYellow && isYellowFilterActive();
 
     const groups = new Map(); // normalizeKey -> { key, items[] }
     (rawLists || []).forEach(res => {
@@ -560,6 +582,14 @@ async function loadCategory(catId) {
         return;
     }
 
+    // 资源采集站分类:未勾选任何成人源时给出针对性提示
+    if (catId === 'adult' && !selectedAPIs.some(id => isAdultSource(id))) {
+        if (seq !== homeReqSeq) return;
+        renderEmpty(latestContainer, '请先在「源配置」中勾选资源采集站源');
+        if (sentinel) sentinel.remove();
+        return;
+    }
+
     if (catId === 'movie') {
         await loadMovieCategory(seq, hotSection, hotContainer, latestContainer, sentinel);
     } else {
@@ -605,9 +635,9 @@ async function loadMovieCategory(seq, hotSection, hotContainer, latestContainer,
     observeLazyImages(hotContainer);
 }
 
-// 采集站分类:池化加载(tv/anime/variety)
+// 采集站分类:池化加载(tv/anime/variety/adult)
 async function loadPoolCategory(seq, catId, hotSection, hotContainer, latestContainer, sentinel) {
-    const srcIds = getHomeSourceIds();
+    const srcIds = getHomeSourceIds(catId);
     let pool = getPool(catId);
     if (!pool) {
         // 刷新页面后优先使用 5 分钟内的轻量持久缓存，避免首屏等待资源站网络。
@@ -627,7 +657,8 @@ async function refillPool(catId) {
     const pool = homePools[catId];
     if (!pool) return;
 
-    const srcIds = getHomeSourceIds();
+    // 资源采集站分类只拉标记为成人的源;其他分类排除成人源
+    const srcIds = getHomeSourceIds(catId);
     if (!srcIds.length) return;
 
     const from = Math.max(0, ...Object.values(pool.srcPages)) + 1;
@@ -644,7 +675,7 @@ async function refillPool(catId) {
         pool.srcPageCount[srcId] = r.pagecount;
     });
 
-    pool.merged = mergeAndFilter([{ list: pool.items }]);
+    pool.merged = mergeAndFilter([{ list: pool.items }], catId === 'adult');
     pool.hasMore = srcIds.some(s => (pool.srcPages[s] || 0) < (pool.srcPageCount[s] || 1));
     // 持久化轻量卡片数据，后续刷新可直接恢复首屏。
     persistHomePool(catId, pool, srcIds);
@@ -872,5 +903,15 @@ function initHomePage() {
     // 初始加载第一个分类
     switchCategory(homeCurrentCatId);
 }
+
+// 密码验证通过后（如切换到管理员模式）重新渲染分类 tab，显示/隐藏资源采集站分类
+document.addEventListener('passwordVerified', function () {
+    renderCategoryTabs();
+    // 若当前停留在资源采集站分类但模式无权限，退回默认分类
+    if (homeCurrentCatId === 'adult') {
+        const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+        if (!isAdmin) switchCategory('movie');
+    }
+});
 
 document.addEventListener('DOMContentLoaded', initHomePage);

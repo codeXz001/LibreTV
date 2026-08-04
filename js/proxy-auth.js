@@ -1,7 +1,7 @@
 /**
  * 代理请求鉴权模块
- * 为代理请求添加基于普通密码或管理员密码的鉴权机制。
- * 管理员密码只用于非色情管理模式，内容过滤仍由前端强制开启。
+ * 为代理请求添加基于普通密码的鉴权机制。
+ * 代理鉴权统一使用普通密码哈希（管理员/普通共用），权限控制由前端访问模式负责。
  */
 let cachedPasswordHash = null;
 
@@ -20,11 +20,20 @@ function readVerifiedPasswordHash() {
 }
 
 /**
- * 获取当前会话的密码哈希。
+ * 获取当前会话的代理鉴权哈希。
+ * 优先级：验证时保存的普通密码哈希(proxyAuthHash) > 验证状态哈希 > 旧版 userPassword。
  */
 async function getPasswordHash() {
     if (cachedPasswordHash) return cachedPasswordHash;
 
+    // 1. 验证时保存的普通密码哈希（管理员登录也使用普通密码哈希访问代理，避免 401）
+    const proxyHash = localStorage.getItem('proxyAuthHash');
+    if (proxyHash) {
+        cachedPasswordHash = proxyHash;
+        return proxyHash;
+    }
+
+    // 2. 回退：验证状态中保存的哈希
     const verifiedHash = readVerifiedPasswordHash();
     if (verifiedHash) {
         localStorage.setItem('proxyAuthHash', verifiedHash);
@@ -32,7 +41,7 @@ async function getPasswordHash() {
         return verifiedHash;
     }
 
-    // 兼容旧版手动保存的 userPassword。
+    // 3. 兼容旧版手动保存的 userPassword。
     const userPassword = localStorage.getItem('userPassword');
     if (userPassword) {
         try {

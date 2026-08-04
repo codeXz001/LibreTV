@@ -6,6 +6,13 @@ if (typeof window._jsSha256 !== 'function' && typeof window.sha256 === 'function
     window._jsSha256 = window.sha256;
 }
 
+// 同步 SHA-256（js-sha256 提供，供内置密码在同步路径中计算哈希）
+function sha256Sync(message) {
+    if (typeof window._jsSha256 === 'function') return window._jsSha256(message);
+    if (typeof window.sha256 === 'function') return window.sha256(message);
+    return null;
+}
+
 function getConfiguredPasswordHash(name) {
     const value = window.__ENV__ && window.__ENV__[name];
     return typeof value === 'string' && value.length === 64 && !/^0+$/.test(value)
@@ -13,14 +20,32 @@ function getConfiguredPasswordHash(name) {
         : '';
 }
 
+function getBuiltinPasswordHashes() {
+    const cfg = window.ACCESS_PASSWORD_CONFIG;
+    if (!cfg) return { user: '', admin: '' };
+    const user = cfg.builtinUserPassword ? sha256Sync(cfg.builtinUserPassword) || '' : '';
+    const admin = cfg.builtinAdminPassword ? sha256Sync(cfg.builtinAdminPassword) || '' : '';
+    return { user, admin };
+}
+
 function getConfiguredPasswordEntries() {
     const entries = [];
-    const passwordHash = getConfiguredPasswordHash('PASSWORD');
-    const adminPasswordHash = getConfiguredPasswordHash('ADMIN_PASSWORD');
-    if (passwordHash) entries.push({ role: 'user', hash: passwordHash });
+    const envUserHash = getConfiguredPasswordHash('PASSWORD');
+    const envAdminHash = getConfiguredPasswordHash('ADMIN_PASSWORD');
+    if (envUserHash) entries.push({ role: 'user', hash: envUserHash });
     // 普通密码优先：两套环境变量误配为同一密码时，不授予管理员模式。
-    if (adminPasswordHash && adminPasswordHash !== passwordHash) {
-        entries.push({ role: 'admin', hash: adminPasswordHash });
+    if (envAdminHash && envAdminHash !== envUserHash) {
+        entries.push({ role: 'admin', hash: envAdminHash });
+    }
+
+    // 内置密码兜底：环境变量未配置时，使用内置 999999 / 147258。
+    // 仅当对应角色还没有有效哈希时才启用，避免与部署端配置冲突。
+    const builtin = getBuiltinPasswordHashes();
+    const hasUser = entries.some(e => e.role === 'user');
+    const hasAdmin = entries.some(e => e.role === 'admin');
+    if (!hasUser && builtin.user) entries.push({ role: 'user', hash: builtin.user });
+    if (!hasAdmin && builtin.admin && builtin.admin !== builtin.user) {
+        entries.push({ role: 'admin', hash: builtin.admin });
     }
     return entries;
 }
@@ -128,7 +153,11 @@ async function verifyPassword(password) {
             role: matched.role
         }));
         localStorage.setItem('accessMode', matched.role);
-        localStorage.removeItem('proxyAuthHash');
+        // 代理鉴权统一使用普通密码的哈希：管理员/普通共用同一代理鉴权，
+        // 服务端代理只认 PASSWORD(及可选的 ADMIN_PASSWORD)环境变量哈希。
+        // 权限控制(资源采集站可见性/过滤)由前端访问模式负责，避免管理员请求被代理 401 拒绝。
+        const userEntry = entries.find(entry => entry.role === 'user');
+        localStorage.setItem('proxyAuthHash', userEntry ? userEntry.hash : matched.hash);
         return true;
     } catch (error) {
         console.error('验证密码时出错:', error);
