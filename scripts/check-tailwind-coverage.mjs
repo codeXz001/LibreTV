@@ -6,7 +6,7 @@ const files = [
   'index.html', 'player.html', 'watch.html', 'about.html',
   'js/app.js', 'js/home.js', 'js/ui.js', 'js/player.js', 'js/douban.js',
   'js/search.js', 'js/api.js', 'js/password.js', 'js/customer_site.js',
-  'js/config.js', 'js/watch.js', 'js/index-page.js', 'js/version-check.js',
+  'js/config.js', 'js/watch.js', 'js/index-page.js',
   'js/subscription.js', 'js/pwa-register.js',
 ];
 const used = new Set();
