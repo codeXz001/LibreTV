@@ -21,10 +21,19 @@ const HOME_TYPE_MATCH = {
     variety: t => /综艺/.test(t),
 };
 
+// 判断某源是否为资源采集站源(内置 adult:true 或自定义 isAdult)
+function isAdultSource(srcId) {
+    if (srcId.startsWith('custom_')) {
+        const info = getCustomApiInfo(srcId.replace('custom_', ''));
+        return !!(info && info.isAdult);
+    }
+    return !!(API_SITES[srcId] && API_SITES[srcId].adult);
+}
+
 // ---- 状态 ----
 const homePools = {};          // catId -> 池(聚合条目 + 每源拉页游标)。仅 tv/anime/variety 用
 const POOL_TTL = 5 * 60 * 1000; // 池 5 分钟 TTL(与搜索缓存一致)
-const PER_SOURCE_PAGES = 2;    // 每源每批拉取页数(每页 20 条)
+const PER_SOURCE_PAGES = 1;    // 首屏每源只拉一页，后续滚动再补页
 const LATEST_BATCH = 24;       // 网格每批展示条数
 
 let homeCurrentCatId = 'movie';
@@ -35,6 +44,109 @@ let __sentinelObserver = null; // 滚动哨兵观察器(全局一个)
 // movie 分类(豆瓣)分页状态
 let homeMoviePage = 1;
 let homeMovieHasMore = false;
+
+// 带超时的请求包装:超时返回 fallback，不阻塞首屏（用于豆瓣等可能走备用链的慢请求）
+function withTimeout(promise, ms, fallback) {
+    let timer;
+    const timeout = new Promise(resolve => {
+        timer = setTimeout(() => resolve(fallback), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+const HOME_CACHE_PREFIX = 'homePoolCache_v1:';
+const HOME_CACHE_TTL = 5 * 60 * 1000; // 与内存池 TTL 一致
+
+function getHomeSourceIds() {
+    const allSrcIds = Array.isArray(selectedAPIs) ? selectedAPIs : [];
+    return allSrcIds.filter(id => !isAdultSource(id));
+}
+
+function getHomeSourceSignature(srcIds) {
+    return [...srcIds].sort().join(',');
+}
+
+function getHomeCacheKey(catId, srcIds) {
+    return HOME_CACHE_PREFIX + catId + ':' + getHomeSourceSignature(srcIds);
+}
+
+// 只持久化卡片与详情索引需要的字段，避免把 vod_content 等大字段写入 localStorage。
+function compactHomeItem(item) {
+    return {
+        vod_id: item.vod_id,
+        vod_name: item.vod_name,
+        vod_pic: item.vod_pic,
+        vod_remarks: item.vod_remarks,
+        vod_time: item.vod_time,
+        type_name: item.type_name,
+        source_name: item.source_name,
+        source_code: item.source_code,
+        api_url: item.api_url,
+    };
+}
+
+function persistHomePool(catId, pool, srcIds) {
+    if (!pool || !pool.items.length || !srcIds.length) return;
+    try {
+        const payload = {
+            ts: Date.now(),
+            sourceSignature: getHomeSourceSignature(srcIds),
+            items: pool.items.map(compactHomeItem),
+            srcPages: pool.srcPages,
+            srcPageCount: pool.srcPageCount,
+            hasMore: pool.hasMore,
+        };
+        localStorage.setItem(getHomeCacheKey(catId, srcIds), JSON.stringify(payload));
+    } catch (error) {
+        // localStorage 配额不足不影响首页正常请求与渲染。
+        console.warn('[首页] 持久缓存写入失败:', error.message);
+    }
+}
+
+function restoreHomePool(catId, srcIds) {
+    if (!srcIds.length) return null;
+    const key = getHomeCacheKey(catId, srcIds);
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const cached = JSON.parse(raw);
+        if (!cached || !cached.ts || Date.now() - cached.ts >= HOME_CACHE_TTL ||
+            cached.sourceSignature !== getHomeSourceSignature(srcIds) ||
+            !Array.isArray(cached.items) || !cached.items.length) {
+            localStorage.removeItem(key);
+            return null;
+        }
+
+        const pool = {
+            items: cached.items,
+            merged: [],
+            rendered: 0,
+            srcPages: cached.srcPages || {},
+            srcPageCount: cached.srcPageCount || {},
+            hasMore: !!cached.hasMore,
+            ts: cached.ts,
+        };
+        pool.merged = mergeAndFilter([{ list: pool.items }]);
+        homePools[catId] = pool;
+        return pool;
+    } catch (error) {
+        localStorage.removeItem(key);
+        return null;
+    }
+}
+
+function clearPersistedHomePools() {
+    try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(HOME_CACHE_PREFIX)) keys.push(key);
+        }
+        keys.forEach(key => localStorage.removeItem(key));
+    } catch (error) {
+        console.warn('[首页] 清理持久缓存失败:', error.message);
+    }
+}
 
 // 池缓存读写
 function getPool(catId) {
@@ -94,7 +206,7 @@ async function fetchSourceCategoryPage(srcId, catId, page) {
 
         const apiUrl = apiBase + '?ac=videolist' + (page > 1 ? '&pg=' + page : '');
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), HOME_CONFIG.sourceTimeout || 7000);
 
         const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl
             ? await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(apiUrl))
@@ -143,10 +255,10 @@ async function fetchSourceCategoryRange(srcId, catId, from, to) {
     return { items, pagecount, toPage: to };
 }
 
-// 合并过滤:黄色过滤 + 标题归一化去重 + 写入聚合详情 map
+// 合并过滤:敏感内容过滤 + 标题归一化去重 + 写入聚合详情 map
 function mergeAndFilter(rawLists) {
     const banned = (typeof BANNED_TYPE_NAMES !== 'undefined') ? BANNED_TYPE_NAMES : [];
-    const yellowFilter = localStorage.getItem('yellowFilterEnabled') === 'true';
+    const yellowFilter = true;
 
     const groups = new Map(); // normalizeKey -> { key, items[] }
     (rawLists || []).forEach(res => {
@@ -212,20 +324,51 @@ function mapDoubanItem(d) {
 // ---- 渲染 ----
 
 // 海报卡片(热映条与最新网格共用;豆瓣条目带 searchKey,点击触发源站搜索)
+function escapeHomeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// data-* 属性取回时的反转义（与 escapeHomeHtml 对称）
+function decodeHomeHtml(value) {
+    return String(value || '')
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+}
+
 function buildPosterCardHtml(item, opts) {
-    const safeName = (item.vod_name || '').toString()
-        .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const safeRemarks = (item.vod_remarks || '').toString().replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const rawName = (item.vod_name || '').toString();
+    const safeName = escapeHomeHtml(rawName);
+    const safeRemarks = escapeHomeHtml(item.vod_remarks || '');
     const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
-    const searchKey = (opts && opts.searchKey) ? item.vod_name : '';
+    const searchKey = (opts && opts.searchKey) ? rawName : '';
+    const safeTitle = escapeHomeHtml(rawName);
+    const safeKey = escapeHomeHtml(normalizeTitle(rawName));
+    const cardData = searchKey
+        ? `data-search-key="${safeTitle}" data-title="${safeTitle}"`
+        : `data-key="${safeKey}" data-title="${safeTitle}"`;
+
+    const priority = opts && opts.priority;
+    const imageSrc = priority ? item.vod_pic : IMG_TRANSPARENT;
+    const lazyAttrs = priority ? '' : `data-src="${item.vod_pic}"`;
+    const imageAttrs = priority
+        ? 'loading="eager" fetchpriority="high"'
+        : 'loading="lazy"';
 
     return `
-        <div class="poster-card" ${searchKey ? `data-search-key="${safeName}"` : `data-key="${normalizeTitle(item.vod_name).replace(/"/g, '&quot;')}"`}
+        <div class="poster-card" ${cardData}
              role="button" tabindex="0" aria-label="${safeName}">
             <div class="poster-img-wrap lazy-img-wrap">
                 ${hasCover ? `
-                <img src="${IMG_TRANSPARENT}" data-src="${item.vod_pic}" data-orig="${item.vod_pic}" alt="${safeName}"
-                     onerror="handleImageError(this)" loading="lazy" decoding="async">` : ''}
+                <img src="${imageSrc}" ${lazyAttrs} data-orig="${item.vod_pic}" alt="${safeName}"
+                     onerror="handleImageError(this)" ${imageAttrs} decoding="async">` : ''}
                 ${safeRemarks ? `<span class="poster-remark">${safeRemarks}</span>` : ''}
             </div>
             <p class="poster-title">${safeName}</p>
@@ -234,11 +377,18 @@ function buildPosterCardHtml(item, opts) {
 }
 
 // 热映横滑条(琥珀"热"角标)
-function renderHotStrip(container, items) {
+function renderHotStrip(container, items, withSearchKey = false) {
     if (!container) return;
     const list = items.slice(0, HOME_CONFIG.hotStripLimit);
     if (!list.length) { container.innerHTML = ''; return; }
-    container.innerHTML = list.map(item => buildPosterCardHtml(item)).join('');
+    container.innerHTML = list.map((item, index) => buildPosterCardHtml(item, {
+        ...(withSearchKey ? { searchKey: true } : {}),
+        priority: index < 2,
+    })).join('');
+    if (window.hintImageHosts) {
+        const covers = list.map(item => item.vod_pic).filter(Boolean);
+        if (covers.length) window.hintImageHosts(covers);
+    }
     // 给横滑条卡片统一追加"热"角标
     container.querySelectorAll('.poster-card').forEach(card => {
         const wrap = card.querySelector('.poster-img-wrap');
@@ -249,7 +399,15 @@ function renderHotStrip(container, items) {
 // 最新更新网格
 function renderLatestGrid(container, items, withSearchKey) {
     if (!container) return;
-    container.innerHTML = items.map(item => buildPosterCardHtml(item, withSearchKey ? { searchKey: true } : null)).join('');
+    const list = items || [];
+    container.innerHTML = list.map((item, index) => buildPosterCardHtml(item, {
+        ...(withSearchKey ? { searchKey: true } : {}),
+        priority: index < 2,
+    })).join('');
+    if (window.hintImageHosts) {
+        const covers = list.map(item => item.vod_pic).filter(Boolean);
+        if (covers.length) window.hintImageHosts(covers);
+    }
 }
 
 // 空态提示
@@ -278,10 +436,49 @@ function skeletonHtml(count) {
     return html;
 }
 
-// 构建某分类的区块骨架(热映区 + 最新区 + 分页哨兵)
+// 外部资源导航区块：仅展示入口，新窗口打开，不执行第三方页面脚本
+function buildResourceNavHtml() {
+    const items = (typeof HOME_RESOURCE_NAV !== 'undefined') ? HOME_RESOURCE_NAV : [];
+    if (!items.length) return '';
+    const cards = items.map(nav => {
+        const safeName = escapeHomeHtml(nav.name);
+        const safeDesc = escapeHomeHtml(nav.description);
+        const safeBadge = escapeHomeHtml(nav.badge);
+        const safeUrl = nav.url.replace(/"/g, '&quot;');
+        return `
+            <div class="resource-nav-item resource-nav-link" role="button" tabindex="0"
+                 data-nav-url="${safeUrl}" data-nav-name="${safeName}" aria-label="${safeName}">
+                <div class="resource-nav-info">
+                    <div class="resource-nav-name">${safeName}</div>
+                    <div class="resource-nav-desc">${safeDesc}</div>
+                </div>
+                ${safeBadge ? `<span class="resource-nav-badge">${safeBadge}</span>` : ''}
+                <svg class="resource-nav-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                </svg>
+            </div>`;
+    }).join('');
+    return `
+        <div class="resource-nav" aria-label="外部资源导航">
+            ${cards}
+        </div>`;
+}
+
+// 外部导航点击事件委托：新标签页打开（noopener noreferrer）
+function handleResourceNavClick(e) {
+    const el = e.target.closest('.resource-nav-link');
+    if (!el) return;
+    const url = el.dataset.navUrl;
+    if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+}
+
+// 构建某分类的区块骨架(资源导航 + 热映区 + 最新区 + 分页哨兵)
 function buildCatSectionHtml(catId) {
     return `
         <div class="cat-section">
+            ${buildResourceNavHtml()}
             <div class="hot-section">
                 <div class="section-head">
                     <h2 class="section-title hot-title">正在热映</h2>
@@ -372,21 +569,26 @@ async function loadCategory(catId) {
 
 // 电影分类:豆瓣热门(热映条)+ 豆瓣最新(网格)
 async function loadMovieCategory(seq, hotSection, hotContainer, latestContainer, sentinel) {
-    const [hotRes, latestRes] = await Promise.all([
-        fetchDoubanData(doubanMovieUrl('热门', HOME_CONFIG.hotStripLimit, 0)),
-        fetchDoubanData(doubanMovieUrl('最新', LATEST_BATCH, 0))
-    ]);
+    // 两个豆瓣请求各自加短超时：任一源慢/失败不拖住整个首屏（主请求+备用链最长可达 20s）
+    const HOT_TIMEOUT = 6000;
+    // 两个请求同时发出；热门先到先渲染热映条，最新网格随后到位，首屏内容更快出现
+    const hotPromise = withTimeout(fetchDoubanData(doubanMovieUrl('热门', HOME_CONFIG.hotStripLimit, 0)), HOT_TIMEOUT, null);
+    const latestPromise = withTimeout(fetchDoubanData(doubanMovieUrl('最新', LATEST_BATCH, 0)), HOT_TIMEOUT, null);
+
+    const hotRes = await hotPromise;
     if (seq !== homeReqSeq) return;
 
     const hotItems = (hotRes && hotRes.subjects) ? hotRes.subjects.map(mapDoubanItem) : [];
-    const latestItems = (latestRes && latestRes.subjects) ? latestRes.subjects.map(mapDoubanItem) : [];
-
     if (hotItems.length) {
-        renderHotStrip(hotContainer, hotItems);
+        renderHotStrip(hotContainer, hotItems, true);
         if (hotSection) hotSection.classList.remove('hidden');
     } else if (hotSection) {
         hotSection.remove();
     }
+
+    const latestRes = await latestPromise;
+    if (seq !== homeReqSeq) return;
+    const latestItems = (latestRes && latestRes.subjects) ? latestRes.subjects.map(mapDoubanItem) : [];
 
     latestContainer.innerHTML = '';
     if (latestItems.length) {
@@ -405,7 +607,12 @@ async function loadMovieCategory(seq, hotSection, hotContainer, latestContainer,
 
 // 采集站分类:池化加载(tv/anime/variety)
 async function loadPoolCategory(seq, catId, hotSection, hotContainer, latestContainer, sentinel) {
+    const srcIds = getHomeSourceIds();
     let pool = getPool(catId);
+    if (!pool) {
+        // 刷新页面后优先使用 5 分钟内的轻量持久缓存，避免首屏等待资源站网络。
+        pool = restoreHomePool(catId, srcIds);
+    }
     if (!pool) {
         pool = initPool(catId);
         await refillPool(catId); // 各源并行拉第一批
@@ -420,7 +627,7 @@ async function refillPool(catId) {
     const pool = homePools[catId];
     if (!pool) return;
 
-    const srcIds = Array.isArray(selectedAPIs) ? selectedAPIs : [];
+    const srcIds = getHomeSourceIds();
     if (!srcIds.length) return;
 
     const from = Math.max(0, ...Object.values(pool.srcPages)) + 1;
@@ -439,6 +646,8 @@ async function refillPool(catId) {
 
     pool.merged = mergeAndFilter([{ list: pool.items }]);
     pool.hasMore = srcIds.some(s => (pool.srcPages[s] || 0) < (pool.srcPageCount[s] || 1));
+    // 持久化轻量卡片数据，后续刷新可直接恢复首屏。
+    persistHomePool(catId, pool, srcIds);
 }
 
 // 渲染池内容(热映取前 N,网格取一批)
@@ -554,6 +763,7 @@ async function loadMoreMovie(container, sentinel) {
 // 源配置变更时清空首页缓存(下次进入强制重新拉取)
 function invalidateHomeCache() {
     Object.keys(homePools).forEach(k => delete homePools[k]);
+    clearPersistedHomePools();
     homeMoviePage = 1;
     homeMovieHasMore = false;
     homeReqSeq++; // 使在途请求结果作废
@@ -590,17 +800,32 @@ function showDisclaimer() {
 }
 
 // 卡片点击(事件委托):
-//   - 豆瓣条目(data-search-key)→ 用标题搜索源站
-//   - 采集站条目(data-key)→ 打开聚合详情(多源测速排序 + 源切换)
+//   - 豆瓣/任何带标题的条目(data-title)→ 优先标题搜索；data-search-key 为豆瓣显式标记
+//   - 采集站聚合条目(data-key)→ 打开聚合详情(多源测速排序 + 源切换)；聚合数据缺失时回退标题搜索
 function handleHomeCardClick(e) {
     const card = e.target.closest('.poster-card');
     if (!card) return;
-    if (card.dataset.searchKey && typeof fillAndSearchWithDouban === 'function') {
-        fillAndSearchWithDouban(card.dataset.searchKey);
+    const searchKey = decodeHomeHtml(card.dataset.searchKey);
+    const title = decodeHomeHtml(card.dataset.title);
+    const key = card.dataset.key || '';
+    // 豆瓣条目或任何带原始标题的条目：用标题搜索源站
+    if (searchKey || (title && !key)) {
+        if (typeof fillAndSearchWithDouban === 'function') {
+            fillAndSearchWithDouban(searchKey || title);
+        }
         return;
     }
-    if (card.dataset.key && typeof showAggregatedDetails === 'function') {
-        showAggregatedDetails(card.dataset.key);
+    // 采集站聚合条目：打开聚合详情；聚合数据缺失时回退标题搜索
+    if (key) {
+        const hasAggregateData = (typeof aggregateItemMap !== 'undefined') && aggregateItemMap.has(key);
+        if (hasAggregateData && typeof showAggregatedDetails === 'function') {
+            showAggregatedDetails(key);
+        } else if (title && typeof fillAndSearchWithDouban === 'function') {
+            // 聚合详情数据缺失（如旧缓存/未聚合条目）：回退标题搜索，保证点击必有响应
+            fillAndSearchWithDouban(title);
+        }
+    } else if (title && typeof fillAndSearchWithDouban === 'function') {
+        fillAndSearchWithDouban(title);
     }
 }
 
@@ -640,6 +865,8 @@ function initHomePage() {
     if (feed) {
         feed.addEventListener('click', handleHomeCardClick);
         feed.addEventListener('keydown', handleHomeCardKeydown);
+        // 外部资源导航（影视仓/饭太硬）点击委托
+        feed.addEventListener('click', handleResourceNavClick);
     }
 
     // 初始加载第一个分类

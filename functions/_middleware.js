@@ -2,7 +2,7 @@
 // Cloudflare Pages Middleware：把 PASSWORD SHA-256 注入到 HTML
 // 公共逻辑下沉到 inject-env-core，本文件只剩 Cloudflare Pages 运行时差异
 
-import { sha256Hex, injectPasswordHash } from '../inject-env-core/index.mjs';
+import { sha256Hex, injectPasswordConfig } from '../inject-env-core/index.mjs';
 
 export async function onRequest(context) {
   const { next, env } = context;
@@ -13,8 +13,10 @@ export async function onRequest(context) {
 
   const html = await response.text();
   const password = env.PASSWORD || '';
+  const adminPassword = env.ADMIN_PASSWORD || '';
   const passwordHash = password ? await sha256Hex(password) : '';
-  const modified = injectPasswordHash(html, passwordHash);
+  const adminPasswordHash = adminPassword ? await sha256Hex(adminPassword) : '';
+  const modified = injectPasswordConfig(html, passwordHash, adminPasswordHash);
 
   const headers = new Headers(response.headers);
   // 宽松 CSP（与 server.mjs 一致，防御纵深）

@@ -1,44 +1,43 @@
 /**
  * 代理请求鉴权模块
- * 为代理请求添加基于 PASSWORD 的鉴权机制
+ * 为代理请求添加基于普通密码或管理员密码的鉴权机制。
+ * 管理员密码只用于非色情管理模式，内容过滤仍由前端强制开启。
  */
-
-// 从全局配置获取密码哈希（如果存在）
 let cachedPasswordHash = null;
 
+function readVerifiedPasswordHash() {
+    try {
+        const raw = localStorage.getItem('passwordVerified');
+        if (!raw) return null;
+        const state = JSON.parse(raw);
+        if (!state || state.verified !== true || !state.passwordHash) return null;
+        if (typeof window.isPasswordVerified === 'function' && !window.isPasswordVerified()) return null;
+        return state.passwordHash;
+    } catch (error) {
+        console.warn('读取密码鉴权状态失败:', error);
+        return null;
+    }
+}
+
 /**
- * 获取当前会话的密码哈希
+ * 获取当前会话的密码哈希。
  */
 async function getPasswordHash() {
-    if (cachedPasswordHash) {
-        return cachedPasswordHash;
+    if (cachedPasswordHash) return cachedPasswordHash;
+
+    const verifiedHash = readVerifiedPasswordHash();
+    if (verifiedHash) {
+        localStorage.setItem('proxyAuthHash', verifiedHash);
+        cachedPasswordHash = verifiedHash;
+        return verifiedHash;
     }
-    
-    // 1. 优先从已存储的代理鉴权哈希获取
-    const storedHash = localStorage.getItem('proxyAuthHash');
-    if (storedHash) {
-        cachedPasswordHash = storedHash;
-        return storedHash;
-    }
-    
-    // 2. 尝试从密码验证状态获取（password.js 验证后存储的哈希）
-    const passwordVerified = localStorage.getItem('passwordVerified');
-    const storedPasswordHash = localStorage.getItem('passwordHash');
-    if (passwordVerified === 'true' && storedPasswordHash) {
-        localStorage.setItem('proxyAuthHash', storedPasswordHash);
-        cachedPasswordHash = storedPasswordHash;
-        return storedPasswordHash;
-    }
-    
-    // 3. 尝试从用户输入的密码生成哈希
+
+    // 兼容旧版手动保存的 userPassword。
     const userPassword = localStorage.getItem('userPassword');
     if (userPassword) {
         try {
-            // 使用页面已加载的 js-sha256（libs/sha256.min.js → window._jsSha256）
             const sha256Fn = window._jsSha256 || window.sha256;
-            if (typeof sha256Fn !== 'function') {
-                throw new Error('sha256 实现不可用');
-            }
+            if (typeof sha256Fn !== 'function') throw new Error('sha256 实现不可用');
             const hash = await sha256Fn(userPassword);
             localStorage.setItem('proxyAuthHash', hash);
             cachedPasswordHash = hash;
@@ -47,33 +46,21 @@ async function getPasswordHash() {
             console.error('生成密码哈希失败:', error);
         }
     }
-    
-    // 4. 如果用户没有设置密码，尝试使用环境变量中的密码哈希
-    if (window.__ENV__ && window.__ENV__.PASSWORD) {
-        cachedPasswordHash = window.__ENV__.PASSWORD;
-        return window.__ENV__.PASSWORD;
-    }
-    
+
+    // 无密码模式下不添加鉴权参数；服务端会按无密码模式处理。
     return null;
 }
 
 /**
- * 为代理请求URL添加鉴权参数
+ * 为代理请求 URL 添加鉴权参数。
  */
 async function addAuthToProxyUrl(url) {
     try {
         const hash = await getPasswordHash();
-        if (!hash) {
-            console.warn('无法获取密码哈希，代理请求可能失败');
-            return url;
-        }
-        
-        // 添加时间戳防止重放攻击
+        if (!hash) return url;
+
         const timestamp = Date.now();
-        
-        // 检查URL是否已包含查询参数
         const separator = url.includes('?') ? '&' : '?';
-        
         return `${url}${separator}auth=${encodeURIComponent(hash)}&t=${timestamp}`;
     } catch (error) {
         console.error('添加代理鉴权失败:', error);
@@ -82,46 +69,34 @@ async function addAuthToProxyUrl(url) {
 }
 
 /**
- * 验证代理请求的鉴权
+ * 验证代理请求鉴权。
  */
 function validateProxyAuth(authHash, serverPasswordHash, timestamp) {
-    if (!authHash || !serverPasswordHash) {
-        return false;
-    }
-    
-    // 验证哈希是否匹配
-    if (authHash !== serverPasswordHash) {
-        return false;
-    }
-    
-    // 验证时间戳（10分钟有效期）
+    if (!authHash || !serverPasswordHash) return false;
+    if (authHash !== serverPasswordHash) return false;
+
     const now = Date.now();
-    const maxAge = 10 * 60 * 1000; // 10分钟
-    
-    if (timestamp && (now - parseInt(timestamp)) > maxAge) {
+    const maxAge = 10 * 60 * 1000;
+    if (timestamp && (now - parseInt(timestamp, 10)) > maxAge) {
         console.warn('代理请求时间戳过期');
         return false;
     }
-    
     return true;
 }
 
-/**
- * 清除缓存的鉴权信息
- */
 function clearAuthCache() {
     cachedPasswordHash = null;
     localStorage.removeItem('proxyAuthHash');
 }
 
-// 监听密码变化，清除缓存
 window.addEventListener('storage', (e) => {
-    if (e.key === 'userPassword' || (window.PASSWORD_CONFIG && e.key === window.PASSWORD_CONFIG.localStorageKey)) {
+    if (e.key === 'userPassword' || e.key === 'passwordVerified' || e.key === 'accessMode') {
         clearAuthCache();
     }
 });
 
-// 导出函数
+document.addEventListener('passwordVerified', clearAuthCache);
+
 window.ProxyAuth = {
     addAuthToProxyUrl,
     validateProxyAuth,

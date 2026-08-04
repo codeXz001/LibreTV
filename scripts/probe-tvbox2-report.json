@@ -1,0 +1,106 @@
+{
+  "addable": [
+    {
+      "api": "https://ikunzyapi.com/api.php/provide/vod",
+      "from": "小盒子4K",
+      "host": "ikunzyapi.com",
+      "ok": true,
+      "total": 3,
+      "sampleName": "流浪地球2",
+      "hasM3u8": true,
+      "playSample": "正片$https://bfikuncdn.com/20230414/husgmnOh/index.m3u8",
+      "addable": true
+    },
+    {
+      "api": "https://www.hongniuzy2.com/api.php/provide/vod/",
+      "from": "小盒子4K",
+      "host": "hongniuzy2.com",
+      "ok": true,
+      "total": 5,
+      "sampleName": "流浪地球3(上)（预告片）",
+      "hasM3u8": true,
+      "playSample": "预告片$https://hn.bfvvs.com/play/eZ66wN8e$$$预告片$https://hn.bfvvs.com/play/eZ66wN8e/index.m3u8",
+      "addable": true
+    }
+  ],
+  "all": [
+    {
+      "api": "https://haiwaikan.com/api.php/provide/vod",
+      "name": "海外看",
+      "from": "FongMI内嵌",
+      "ok": false,
+      "note": "ECONNRESET",
+      "addable": false
+    },
+    {
+      "api": "https://suoniapi.com/api.php/provide/vod",
+      "name": "索尼",
+      "from": "FongMI内嵌",
+      "ok": false,
+      "note": "非苹果CMS JSON:<!DOCTYPE html>\n<!--[if lt IE 7]> <html ",
+      "addable": false
+    },
+    {
+      "api": "https://api.kuaifan.tv/api.php/provide/vod",
+      "name": "快帆",
+      "from": "FongMI内嵌",
+      "ok": false,
+      "note": "ENOTFOUND",
+      "addable": false
+    },
+    {
+      "api": "http://xh1.xn--yetu07f.icu/api.php/provide/vod/",
+      "from": "小盒子4K",
+      "host": "xh1.xn--yetu07f.icu",
+      "ok": false,
+      "note": "ENOTFOUND",
+      "addable": false
+    },
+    {
+      "api": "https://video.adminqt.cn/api.php/provide/vod/",
+      "from": "小盒子4K",
+      "host": "video.adminqt.cn",
+      "ok": false,
+      "note": "ENOTFOUND",
+      "addable": false
+    },
+    {
+      "api": "https://xzcjz.com/api.php/provide/vod",
+      "from": "小盒子4K",
+      "host": "xzcjz.com",
+      "ok": false,
+      "note": "ENOTFOUND",
+      "addable": false
+    },
+    {
+      "api": "https://ikunzyapi.com/api.php/provide/vod",
+      "from": "小盒子4K",
+      "host": "ikunzyapi.com",
+      "ok": true,
+      "total": 3,
+      "sampleName": "流浪地球2",
+      "hasM3u8": true,
+      "playSample": "正片$https://bfikuncdn.com/20230414/husgmnOh/index.m3u8",
+      "addable": true
+    },
+    {
+      "api": "https://www.hongniuzy2.com/api.php/provide/vod/",
+      "from": "小盒子4K",
+      "host": "hongniuzy2.com",
+      "ok": true,
+      "total": 5,
+      "sampleName": "流浪地球3(上)（预告片）",
+      "hasM3u8": true,
+      "playSample": "预告片$https://hn.bfvvs.com/play/eZ66wN8e$$$预告片$https://hn.bfvvs.com/play/eZ66wN8e/index.m3u8",
+      "addable": true
+    },
+    {
+      "api": "https://suoniapi.com/api.php/provide/vod/",
+      "from": "小盒子4K",
+      "host": "suoniapi.com",
+      "ok": false,
+      "note": "非苹果CMS JSON:<!DOCTYPE html>\n<!--[if lt IE 7]> <html ",
+      "addable": false
+    }
+  ]
+}

@@ -75,6 +75,98 @@ window.addEventListener('load', function () {
 
 
 // =================================
+// 播放器组件按需加载(HLS.js + ArtPlayer)
+// 两个库合计约 680KB,改为播放时动态加载,播放页首屏(标题/集数/控制条)不再被阻塞。
+// =================================
+let playerLibsPromise = null;
+let playerInitSeq = 0;
+
+// 动态加载单个脚本,支持重复调用
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+            if (existing.dataset.loaded) return resolve();
+            existing.addEventListener('load', () => resolve(), { once: true });
+            existing.addEventListener('error', () => reject(new Error('脚本加载失败: ' + src)), { once: true });
+            return;
+        }
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.fetchPriority = 'high';
+        s.onload = () => { s.dataset.loaded = '1'; resolve(); };
+        s.onerror = () => reject(new Error('脚本加载失败: ' + src));
+        document.head.appendChild(s);
+    });
+}
+
+// 播放器组件下载期间并行预连接实际播放域名，减少 DNS/TLS 建连等待。
+const hintedPlaybackOrigins = new Set();
+function hintPlaybackOrigin(videoUrl) {
+    try {
+        const origin = new URL(videoUrl, window.location.href).origin;
+        if (!/^https?:$/i.test(new URL(videoUrl, window.location.href).protocol) ||
+            hintedPlaybackOrigins.has(origin) || origin === window.location.origin) return;
+        hintedPlaybackOrigins.add(origin);
+        const preconnect = document.createElement('link');
+        preconnect.rel = 'preconnect';
+        preconnect.href = origin;
+        preconnect.crossOrigin = 'anonymous';
+        document.head.appendChild(preconnect);
+        const dns = document.createElement('link');
+        dns.rel = 'dns-prefetch';
+        dns.href = origin;
+        document.head.appendChild(dns);
+    } catch (e) {
+        // 播放地址异常由播放器统一处理，这里不阻断初始化。
+    }
+}
+
+// 确保播放器组件已就绪;并发调用复用同一 Promise,失败后允许重试
+function ensurePlayerLibs() {
+    if (!playerLibsPromise) {
+        playerLibsPromise = Promise.all([
+            loadScript('libs/artplayer.min.js'),
+            loadScript('libs/hls.min.js'),
+        ]).then(() => {
+            // 组件就绪后的全局配置(原为顶层语句,依赖 Artplayer 已加载)
+            Artplayer.FULLSCREEN_WEB_IN_BODY = true;
+            // 自定义 M3U8 Loader 用于过滤广告(原为顶层类定义,依赖 Hls 已加载)
+            window.CustomHlsJsLoader = class extends Hls.DefaultConfig.loader {
+                constructor(config) {
+                    super(config);
+                    const load = this.load.bind(this);
+                    this.load = function (context, config, callbacks) {
+                        // 拦截manifest和level请求
+                        if (context.type === 'manifest' || context.type === 'level') {
+                            const onSuccess = callbacks.onSuccess;
+                            callbacks.onSuccess = function (response, stats, context) {
+                                // 如果是m3u8文件，处理内容以移除广告分段
+                                if (response.data && typeof response.data === 'string') {
+                                    // 过滤掉广告段 - 实现更精确的广告过滤逻辑
+                                    response.data = filterAdsFromM3U8(response.data, true);
+                                }
+                                return onSuccess(response, stats, context);
+                            };
+                        }
+                        // 执行原始load方法
+                        load(context, config, callbacks);
+                    };
+                }
+            };
+            return true;
+        }).catch(err => {
+            // 加载失败允许后续重试
+            playerLibsPromise = null;
+            throw err;
+        });
+    }
+    return playerLibsPromise;
+}
+
+
+// =================================
 // ============== PLAYER ==========
 // =================================
 // 全局变量
@@ -92,7 +184,6 @@ let adFilteringEnabled = true; // 默认开启广告过滤
 let progressSaveInterval = null; // 定期保存进度的计时器
 let currentVideoUrl = ''; // 记录当前实际的视频URL
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
-Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
@@ -223,7 +314,7 @@ function initializePageContent() {
 
     // 初始化播放器
     if (videoUrl) {
-        initPlayer(videoUrl);
+        initPlayer(videoUrl).catch(err => console.error('播放器初始化失败:', err));
     } else {
         showError('无效的视频链接');
     }
@@ -391,10 +482,23 @@ function showShortcutHint(text, direction) {
     }, 2000);
 }
 
-// 初始化播放器
-function initPlayer(videoUrl) {
+// 初始化播放器（组件按需加载，异步就绪后创建实例）
+async function initPlayer(videoUrl) {
     if (!videoUrl) {
         return
+    }
+
+    const initSeq = ++playerInitSeq;
+    // 播放域名与播放器库并行预连接/下载，缩短首个 m3u8 请求的建连时间。
+    hintPlaybackOrigin(videoUrl);
+    try {
+        await ensurePlayerLibs();
+        // 用户快速切集时，只让最后一次初始化创建播放器，避免重复实例竞争。
+        if (initSeq !== playerInitSeq) return;
+    } catch (e) {
+        console.error('播放器组件加载失败:', e);
+        showError('播放器组件加载失败，请刷新页面重试');
+        return;
     }
 
     // 销毁旧实例
@@ -406,7 +510,7 @@ function initPlayer(videoUrl) {
     // 配置HLS.js选项
     const hlsConfig = {
         debug: false,
-        loader: adFilteringEnabled ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
+        loader: adFilteringEnabled ? window.CustomHlsJsLoader : Hls.DefaultConfig.loader,
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
@@ -465,6 +569,7 @@ function initPlayer(videoUrl) {
         lang: navigator.language.toLowerCase(),
         moreVideoAttr: {
             crossOrigin: 'anonymous',
+            preload: 'metadata',
         },
         customType: {
             m3u8: function (video, url) {
@@ -753,30 +858,6 @@ function initPlayer(videoUrl) {
     }, 10000);
 }
 
-// 自定义M3U8 Loader用于过滤广告
-class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
-    constructor(config) {
-        super(config);
-        const load = this.load.bind(this);
-        this.load = function (context, config, callbacks) {
-            // 拦截manifest和level请求
-            if (context.type === 'manifest' || context.type === 'level') {
-                const onSuccess = callbacks.onSuccess;
-                callbacks.onSuccess = function (response, stats, context) {
-                    // 如果是m3u8文件，处理内容以移除广告分段
-                    if (response.data && typeof response.data === 'string') {
-                        // 过滤掉广告段 - 实现更精确的广告过滤逻辑
-                        response.data = filterAdsFromM3U8(response.data, true);
-                    }
-                    return onSuccess(response, stats, context);
-                };
-            }
-            // 执行原始load方法
-            load(context, config, callbacks);
-        };
-    }
-}
-
 // 过滤可疑的广告内容
 // 2026-08-03 改进：不再删除 #EXT-X-DISCONTINUITY（会破坏正常流的码率切换/续播结构），
 // 改为按分段 URL 域名黑名单剔除广告分段（连同其前一行 EXTINF），其他行原样保留。
@@ -952,8 +1033,8 @@ function playEpisode(index) {
     currentUrl.searchParams.delete('position');
     window.history.replaceState({}, '', currentUrl.toString());
 
-    if (isWebkit) {
-        initPlayer(url);
+    if (isWebkit || !art) {
+        initPlayer(url).catch(err => console.error('切换剧集播放器初始化失败:', err));
     } else {
         art.switch = url;
     }

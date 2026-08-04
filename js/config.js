@@ -146,9 +146,64 @@ const API_SITES = {
         api: 'https://360zyzz.com/api.php/provide/vod',
         name: '360备用',            // 5033ms，较慢，作为 360zy 的兜底
     },
-    // ===== 2026-08-03 已移除（实测失效，DNS 解析失败 / 连接被拒，串行长超时复测仍不通）=====
+    // ===== 2026-08-04 资源采集站：10 个逐站实测通过（scripts/probe-adult.mjs）=====
+    // 验证方式：`?ac=videolist&wd=1` 返回 JSON 且有真实数据、播放地址含 m3u8。
+    // adult:true 标记：源配置 UI 归入「资源采集站」分组；选中时自动禁用黄色过滤。
+    // 已排除：老鸭资源(DNS 解析失败)、精品资源(连接被重置)。
+    // 155/乐播/滴滴 的 /at/json 变体与主接口返回完全相同内容，已去重只保留主接口。
+    xrbsp: {
+        api: 'https://www.xrbsp.com/api/json.php',
+        name: '淫水机资源',            // 834ms
+        adult: true,
+    },
+    fhapi9: {
+        api: 'http://fhapi9.com/api.php/provide/vod/',
+        name: '番号资源',              // 749ms
+        adult: true,
+    },
+    '155api': {
+        api: 'https://155api.com/api.php/provide/vod/',
+        name: '155资源',               // 960ms
+        adult: true,
+    },
+    jkunzy: {
+        api: 'https://jkunzyapi.com/api.php/provide/vod/',
+        name: '鸡坤资源',              // 643ms，单次返回 50 条
+        adult: true,
+    },
+    pgxdy: {
+        api: 'https://www.pgxdy.com/api/json.php',
+        name: '黄AV资源',              // 1154ms
+        adult: true,
+    },
+    gdlsp: {
+        api: 'https://www.gdlsp.com/api/json.php',
+        name: '香奶儿资源',            // 658ms
+        adult: true,
+    },
+    msnii: {
+        api: 'https://www.msnii.com/api/json.php',
+        name: '美少女资源',            // 831ms
+        adult: true,
+    },
+    kxgav: {
+        api: 'https://www.kxgav.com/api/json.php',
+        name: '白嫖资源',              // 636ms
+        adult: true,
+    },
+    lbapi9: {
+        api: 'https://lbapi9.com/api.php/provide/vod/',
+        name: '乐播资源',              // 1974ms
+        adult: true,
+    },
+    ddapi: {
+        api: 'https://api.ddapi.cc/api.php/provide/vod/',
+        name: '滴滴资源',              // 968ms
+        adult: true,
+    },
+    // ===== 已移除（实测失效，DNS 解析失败 / 连接被拒，串行长超时复测仍不通）=====
     // zuidazy  最大点播      https://zuidazy.me/api.php/provide/vod
-    // ikun     爱坤资源      https://ikunzyapi.com/api.php/provide/vod
+    // ikun     爱坤资源      https://ikunzyapi.com/api.php/provide/vod  (2026-08-04 从小盒子4K配置中重新发现，一度可达，复测 3/3 ECONNRESET，判定为不稳定源，维持移除)
     // lzzy2    量子资源备用  https://cj.lzcaiji.com/api.php/provide/vod
 };
 
@@ -235,7 +290,7 @@ const SECURITY_CONFIG = {
 // 添加多个自定义API源的配置
 const CUSTOM_API_CONFIG = {
     separator: ',',           // 分隔符
-    maxSources: 5,            // 最大允许的自定义源数量
+    maxSources: 100,           // 最大允许的自定义源数量(订阅导入可能一次加入数十个苹果CMS站点)
     testTimeout: 5000,        // 测试超时时间(毫秒)
     namePrefix: 'Custom-',    // 自定义源名称前缀
     validateUrl: true,        // 验证URL格式
@@ -244,8 +299,8 @@ const CUSTOM_API_CONFIG = {
     adultPropName: 'isAdult' // 用于标记成人内容的属性名
 };
 
-// 隐藏内置黄色采集站API的变量
-const HIDE_BUILTIN_ADULT_APIS = false;
+// 受限内容源始终不在用户界面展示
+const HIDE_BUILTIN_ADULT_APIS = true;
 
 // ===== 首页分类推荐配置 =====
 // tags 为该分类的候选采集站分类名（按序 fallback）：
@@ -260,16 +315,36 @@ const HOME_CATEGORIES = [
 // 黄色内容过滤的分类黑名单（app.js 搜索与 home.js 首页推荐共用，单一事实源）
 const BANNED_TYPE_NAMES = ['伦理片', '福利', '里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒', 'cosplay', '黑丝诱惑', '无码', '日本无码', '有码', '日本有码', 'SWAG', '网红主播', '色情片', '同性片', '福利视频', '福利片'];
 
+// 首页外部资源导航：仅作为发现入口展示，不执行第三方页面脚本，也不参与站内搜索。
+const HOME_RESOURCE_NAV = [
+    {
+        id: 'ying-shi-cang',
+        name: '影视仓导航',
+        url: 'http://影视仓.com/',
+        description: '打开外部影视资源导航页',
+        badge: '外部导航'
+    },
+    {
+        id: 'fan-tai-ying',
+        name: '饭太硬导航',
+        url: 'http://www.饭太硬.art/tv',
+        description: '打开外部影视资源导航页',
+        badge: '外部导航'
+    }
+];
+
 // 首页推荐配置
 const HOME_CONFIG = {
     cacheTTL: 5 * 60 * 1000,   // 分类结果缓存时间
     pageSize: 24,              // 单页条数（与采集站默认一致）
     hotStripLimit: 12,         // "正在热映"横滑条最多展示条数
-    concurrency: 4             // 聚合请求并发上限
+    concurrency: 4,            // 聚合请求并发上限
+    sourceTimeout: 7000        // 首页单个源超时，避免失效源拖住首屏
 };
 
 // 暴露到全局
 window.HOME_CATEGORIES = HOME_CATEGORIES;
+window.HOME_RESOURCE_NAV = HOME_RESOURCE_NAV;
 window.BANNED_TYPE_NAMES = BANNED_TYPE_NAMES;
 window.HOME_CONFIG = HOME_CONFIG;
 

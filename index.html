@@ -102,7 +102,7 @@
         <section id="view-sources" class="app-view">
             <!-- 数据源设置 -->
             <div class="settings-card">
-                <label class="settings-card-title">数据源设置</label>
+                <label class="settings-card-title">数据源设置 <span id="accessModeStatus" class="ml-2 text-xs text-gray-500">普通模式</span></label>
                 <div class="flex space-x-2 mb-3">
                     <button onclick="selectAllAPIs(true)" class="btn-neutral">全选</button>
                     <button onclick="selectAllAPIs(false)" class="btn-neutral">全不选</button>
@@ -117,8 +117,8 @@
                     <span>已选API数量：<span id="selectedApiCount" class="text-white">0</span></span>
                     <span id="siteStatus" class="ml-2"></span>
                 </div>
-                <div class="mt-3">
-                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="btn-blue w-full">检测全部数据源</button>
+                <div id="adminSourceHealth" class="mt-3 hidden">
+                    <button id="checkSourcesBtn" onclick="checkAllSources()" class="btn-blue w-full">检测普通数据源</button>
                     <div id="sourceHealthList" class="mt-2 max-h-40 overflow-y-auto space-y-1 hidden" aria-live="polite"></div>
                 </div>
             </div>
@@ -136,15 +136,27 @@
                     <input type="text" id="customApiName" placeholder="API名称" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
                     <input type="text" id="customApiUrl" placeholder="https://abc.com" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
                     <input type="text" id="customApiDetail" placeholder="detail地址（可选）" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2" autocomplete="off">
-                    <div class="flex items-center mb-2">
-                        <input type="checkbox" id="customApiIsAdult" class="form-checkbox h-4 w-4 text-pink-500 bg-[#222] border border-[#333]">
-                        <label for="customApiIsAdult" class="ml-2 text-xs text-pink-400">黄色资源站</label>
+                    <div class="flex items-center mb-2" id="customApiModeNote">
+                        <span class="text-xs text-gray-500">仅支持普通资源源</span>
                     </div>
                     <div class="flex space-x-2">
                         <button onclick="addCustomApi()" class="btn-blue px-3 py-1 rounded text-xs">添加</button>
                         <button onclick="cancelAddCustomApi()" class="btn-neutral px-3 py-1 rounded text-xs">取消</button>
                     </div>
                 </div>
+            </div>
+
+            <!-- 订阅导入（TVBox 源） -->
+            <div class="settings-card">
+                <label class="settings-card-title">订阅导入（TVBox 源）</label>
+                <p class="text-xs text-gray-500 mb-2">粘贴影视仓、饭太硬等 TVBox 订阅地址，自动提取其中可用的苹果CMS站点并加入自定义源。仅解析静态配置，不执行其爬虫脚本。</p>
+                <div class="flex space-x-2">
+                    <input type="text" id="subscriptionUrl" placeholder="https://example.com/box.json"
+                           class="flex-1 bg-[#222] border border-[#333] text-white px-2 py-1 rounded text-xs"
+                           autocomplete="off" aria-label="订阅地址">
+                    <button id="subscriptionImportBtn" onclick="importSubscription()" class="btn-blue px-3 py-1 rounded text-xs">解析并导入</button>
+                </div>
+                <div id="subscriptionStatus" class="mt-2 space-y-1" aria-live="polite"></div>
             </div>
 
             <!-- 配置备份 -->
@@ -174,14 +186,14 @@
             <div class="settings-card">
                 <label class="settings-card-title">功能开关</label>
 
-                <div class="flex flex-col mb-3 pb-3 border-b border-[#222] relative">
+                <div class="flex flex-col mb-3 pb-3 border-b border-[#222] relative" id="sensitiveFilterSetting">
                     <div class="flex items-center justify-between">
                         <div>
-                            <label class="text-sm font-medium text-gray-400">黄色内容过滤</label>
-                            <p class="text-xs text-gray-500 mt-1 filter-description">过滤"伦理片"等黄色内容</p>
+                            <label class="text-sm font-medium text-gray-400">敏感内容过滤</label>
+                            <p class="text-xs text-gray-500 mt-1 filter-description">过滤"伦理片"等敏感内容</p>
                         </div>
-                        <div class="relative inline-block w-12 align-middle select-none">
-                            <input type="checkbox" id="yellowFilterToggle" class="opacity-0 absolute w-full h-full cursor-pointer z-10">
+                        <div class="relative inline-block w-12 align-middle select-none" id="sensitiveFilterToggleWrap">
+                            <input type="checkbox" id="yellowFilterToggle" class="opacity-0 absolute w-full h-full cursor-pointer z-10" disabled>
                             <div class="toggle-bg bg-[#333] w-12 h-6 rounded-full transition-colors duration-300 ease-in-out"></div>
                             <div class="toggle-dot absolute w-5 h-5 bg-white rounded-full top-0.5 left-0.5 transition-transform duration-300 ease-in-out"></div>
                         </div>
@@ -368,25 +380,23 @@
     }
     </script>
 
-    <!-- 引入纯 JS sha256（HTTP 下依然可用） -->
-    <script src="libs/sha256.min.js"></script>
-    <script>
-        // 保存原始 js‑sha256 实现，避免被 password.js 覆盖
-        window._jsSha256 = window.sha256;
-    </script>
-    <script src="js/config.js"></script>
-    <script src="js/proxy-auth.js"></script>
-    <script src="js/customer_site.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/douban.js"></script>
-    <script src="js/password.js"></script>
-    <script src="js/search.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/home.js"></script>
+    <!-- 引入纯 JS sha256（HTTP 下依然可用）；defer 不阻塞首屏解析，
+         原始 js-sha256 的保存逻辑见 password.js 顶部（按文档顺序执行） -->
+    <script src="libs/sha256.min.js" defer></script>
+    <script src="js/config.js" defer></script>
+    <script src="js/proxy-auth.js" defer></script>
+    <script src="js/customer_site.js" defer></script>
+    <script src="js/ui.js" defer></script>
+    <script src="js/api.js" defer></script>
+    <script src="js/douban.js" defer></script>
+    <script src="js/password.js" defer></script>
+    <script src="js/search.js" defer></script>
+    <script src="js/app.js" defer></script>
+    <script src="js/home.js" defer></script>
+    <script src="js/subscription.js" defer></script>
 
     <!-- PWA 注册 -->
-    <script src="js/pwa-register.js"></script>
+    <script src="js/pwa-register.js" defer></script>
 
     <!-- 环境变量注入脚本 -->
     <script>
@@ -394,14 +404,16 @@
         window.__ENV__ = window.__ENV__ || {};
 
         // 注入服务器端环境变量 (将由服务器端替换)
-        // PASSWORD 变量将在这里被服务器端注入
+        // PASSWORD 变量将在这里由服务器端注入
         window.__ENV__.PASSWORD = "{{PASSWORD}}";
+        // ADMIN_PASSWORD 变量将在这里由服务器端注入
+        window.__ENV__.ADMIN_PASSWORD = "{{ADMIN_PASSWORD}}";
     </script>
 
     <!-- 版本检测脚本 -->
-    <script src="js/version-check.js"></script>
+    <script src="js/version-check.js" defer></script>
 
     <!-- 添加弹窗和URL搜索参数处理脚本 -->
-    <script src="js/index-page.js"></script>
+    <script src="js/index-page.js" defer></script>
 </body>
 </html>

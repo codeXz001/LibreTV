@@ -130,6 +130,7 @@ export const handler = async (event) => {
     authHash: queryParams.auth,
     timestamp: queryParams.t,
     serverPassword: process.env.PASSWORD,
+    alternatePasswords: [process.env.ADMIN_PASSWORD],
   });
   if (!isAuthorized) {
     console.warn('Netlify 代理请求鉴权失败');

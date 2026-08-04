@@ -185,7 +185,45 @@
 .app-view.active { display: block; }
 
 /* =========================================================
-   分类内容区：正在热映横滑条 + 最新更新网格
+   外部资源导航（影视仓/饭太硬等入口）
+   ========================================================= */
+.resource-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.1rem;
+}
+.resource-nav-item {
+    flex: 1 1 200px;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.resource-nav-item:hover {
+    background: rgba(0, 204, 255, 0.08);
+    border-color: rgba(0, 204, 255, 0.4);
+}
+.resource-nav-info { flex: 1; min-width: 0; }
+.resource-nav-name { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
+.resource-nav-desc { font-size: 0.72rem; color: #64748b; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.resource-nav-badge {
+    flex-shrink: 0;
+    font-size: 0.62rem;
+    color: #7dd3fc;
+    border: 1px solid rgba(0, 204, 255, 0.35);
+    border-radius: 9999px;
+    padding: 1px 6px;
+}
+.resource-nav-arrow { width: 0.9rem; height: 0.9rem; color: #64748b; flex-shrink: 0; }
+.resource-nav-item:hover .resource-nav-arrow { color: var(--primary-color); }
+
+/* 分类内容区：正在热映横滑条 + 最新更新网格
    ========================================================= */
 .cat-section { margin-bottom: 1.5rem; }
 .hot-section { margin-bottom: 1.25rem; }
@@ -295,6 +333,9 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.7rem;
+    /* 长列表只在接近视口时参与布局/绘制，减少首页首次布局成本。 */
+    content-visibility: auto;
+    contain-intrinsic-size: 0 900px;
 }
 @media (min-width: 640px) { .latest-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (min-width: 768px) { .latest-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }

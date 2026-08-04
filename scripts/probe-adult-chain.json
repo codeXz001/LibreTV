@@ -1,0 +1,102 @@
+[
+  {
+    "key": "xrbsp",
+    "ok": true,
+    "searchMs": 794,
+    "detailMs": 211,
+    "id": 254986,
+    "hasM3u8": true,
+    "playUrl": "https://video31.avnyg.com/video/20220530/df5c12a709704582abe685da1c8f7e2a/index.",
+    "playOk": true
+  },
+  {
+    "key": "fhapi9",
+    "ok": true,
+    "searchMs": 1109,
+    "detailMs": 259,
+    "id": 233573,
+    "hasM3u8": true,
+    "playUrl": "第1集$https://2605.fhbbff.com/20260802/ZH6iwCZO/index.m3u8",
+    "playOk": false
+  },
+  {
+    "key": "155api",
+    "ok": true,
+    "searchMs": 519,
+    "detailMs": 426,
+    "id": 183603,
+    "hasM3u8": true,
+    "playUrl": "第1集$https://2607.v155p.com/20260803/LhMRwTpk/index.m3u8",
+    "playOk": false
+  },
+  {
+    "key": "jkunzy",
+    "ok": true,
+    "searchMs": 1159,
+    "detailMs": 446,
+    "id": 128609,
+    "hasM3u8": true,
+    "playUrl": "高清$https://jkhabkrqjbj.com/20260802/DpD9kymU/index.m3u8",
+    "playOk": false
+  },
+  {
+    "key": "pgxdy",
+    "ok": true,
+    "searchMs": 1233,
+    "detailMs": 440,
+    "id": 255322,
+    "hasM3u8": true,
+    "playUrl": "https://video57.hav36.com/video/20230703/d3b62df3d7d54320547a8dba5e6199a9/index.",
+    "playOk": true
+  },
+  {
+    "key": "gdlsp",
+    "ok": true,
+    "searchMs": 633,
+    "detailMs": 265,
+    "id": 255628,
+    "hasM3u8": true,
+    "playUrl": "https://video13.balecao.com/video/20220121/0d33b13c823736e947e15e3afb260391/inde",
+    "playOk": true
+  },
+  {
+    "key": "msnii",
+    "ok": true,
+    "searchMs": 856,
+    "detailMs": 280,
+    "id": 256146,
+    "hasM3u8": true,
+    "playUrl": "https://video57.msn17.com/video/20230611/6f229f021c13485849b64afb516cb5ab/index.",
+    "playOk": true
+  },
+  {
+    "key": "kxgav",
+    "ok": true,
+    "searchMs": 594,
+    "detailMs": 218,
+    "id": 255040,
+    "hasM3u8": true,
+    "playUrl": "https://video22.bpzy1.com/video/20220405/cc51f6946e7ffa8f9409190ab68cf445/index.",
+    "playOk": true
+  },
+  {
+    "key": "lbapi9",
+    "ok": true,
+    "searchMs": 4274,
+    "detailMs": 277,
+    "id": 352206,
+    "hasM3u8": true,
+    "playUrl": "在线播放$https://2606.lbsl2026.com/20260802/o1LSJMeV/index.m3u8",
+    "playOk": false
+  },
+  {
+    "key": "ddapi",
+    "ok": true,
+    "searchMs": 921,
+    "detailMs": 345,
+    "id": 71108,
+    "hasM3u8": true,
+    "playUrl": "HD$https://v.didibo2.com/20260803/TWXcffxh/index.m3u8",
+    "playOk": false
+  }
+]

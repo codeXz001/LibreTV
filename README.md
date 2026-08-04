@@ -65,6 +65,7 @@ Pull Bot 会反复触发无效的 PR 和垃圾邮件，严重干扰项目维护�
    - 构建命令：留空（无需构建）
    - 输出目录：留空（默认为根目录）
 5. **⚠️ 重要：在"设置" > "环境变量"中添加 `PASSWORD` 变量（必须设置）**
+   - 可选添加 `ADMIN_PASSWORD` 作为管理员访问密码，仅开放非色情管理功能，敏感内容过滤始终开启。
 6. 点击"保存并部署"
 
 ### Vercel
@@ -73,6 +74,7 @@ Pull Bot 会反复触发无效的 PR 和垃圾邮件，严重干扰项目维护�
 2. 登录 [Vercel](https://vercel.com/)，点击"New Project"
 3. 导入您的仓库，使用默认设置
 4. **⚠️ 重要：在"Settings" > "Environment Variables"中添加 `PASSWORD` 变量（必须设置）**
+   - 可选添加 `ADMIN_PASSWORD` 作为管理员访问密码，仅开放非色情管理功能，敏感内容过滤始终开启。
 5. 点击"Deploy"
 
 
@@ -83,6 +85,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8899:8080 \
   -e PASSWORD=your_password \
+  -e ADMIN_PASSWORD=your_admin_password \
   bestzwei/libretv:latest
 ```
 
@@ -98,7 +101,8 @@ services:
     ports:
       - "8899:8080" # 将内部 8080 端口映射到主机的 8899 端口
     environment:
-      - PASSWORD=${PASSWORD:-111111} # 可将 111111 修改为你想要的密码，默认为 your_password
+      - PASSWORD=${PASSWORD:-your_password} # 普通访问密码
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-} # 可选管理员密码，仅用于非色情管理功能
     restart: unless-stopped
 ```
 启动 LibreTV：
@@ -134,7 +138,7 @@ npm run check
 
 ### 密码保护
 
-**重要提示**: 为确保安全，所有部署都必须设置 PASSWORD 环境变量，否则用户将看到设置密码的提示。
+**重要提示**：生产部署必须设置 `PASSWORD` 环境变量；`ADMIN_PASSWORD` 为可选的管理员密码，仅开放普通资源的数据源检测等管理功能，敏感内容过滤始终开启。
 
 
 ### API兼容性

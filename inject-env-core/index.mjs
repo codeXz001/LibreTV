@@ -2,4 +2,4 @@
 // 聚合导出
 
 export { sha256Hex } from './sha256.mjs';
-export { injectPasswordHash } from './inject.mjs';
+export { injectPasswordConfig, injectPasswordHash } from './inject.mjs';

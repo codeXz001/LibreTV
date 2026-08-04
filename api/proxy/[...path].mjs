@@ -108,6 +108,7 @@ export default async function handler(req, res) {
       authHash: req.query.auth,
       timestamp: req.query.t,
       serverPassword: process.env.PASSWORD,
+      alternatePasswords: [process.env.ADMIN_PASSWORD],
     });
     if (!isAuthorized) {
       console.warn('代理请求鉴权失败');

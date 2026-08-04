@@ -30,6 +30,7 @@ const __dirname = path.dirname(__filename);
 const config = {
   port: process.env.PORT || 8080,
   password: process.env.PASSWORD || '',
+  adminPassword: process.env.ADMIN_PASSWORD || '',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   timeout: parseInt(process.env.REQUEST_TIMEOUT || '5000'),
   maxRetries: parseInt(process.env.MAX_RETRIES || '2'),
@@ -80,11 +81,14 @@ async function sha256Hash(input) {
   return new Promise((resolve) => resolve(hash.digest('hex')));
 }
 
-async function renderPage(filePath, password) {
+async function renderPage(filePath, password, adminPassword) {
   let content = fs.readFileSync(filePath, 'utf8');
   // 阶段 2.5：异步 SHA-256，避免阻塞事件循环
   const sha256 = password ? await sha256Hash(password) : '';
-  return content.replace('{{PASSWORD}}', sha256);
+  const adminSha256 = adminPassword ? await sha256Hash(adminPassword) : '';
+  return content
+    .replace('{{PASSWORD}}', sha256)
+    .replace('{{ADMIN_PASSWORD}}', adminSha256);
 }
 
 app.get(['/', '/index.html', '/player.html'], async (req, res) => {
@@ -95,7 +99,7 @@ app.get(['/', '/index.html', '/player.html'], async (req, res) => {
     } else {
       filePath = path.join(__dirname, 'index.html');
     }
-    const content = await renderPage(filePath, config.password);
+    const content = await renderPage(filePath, config.password, config.adminPassword);
     res.send(content);
   } catch (error) {
     console.error('页面渲染错误:', error);
@@ -105,7 +109,7 @@ app.get(['/', '/index.html', '/player.html'], async (req, res) => {
 
 app.get('/s=:keyword', async (req, res) => {
   try {
-    const content = await renderPage(path.join(__dirname, 'index.html'), config.password);
+    const content = await renderPage(path.join(__dirname, 'index.html'), config.password, config.adminPassword);
     res.send(content);
   } catch (error) {
     console.error('搜索页面渲染错误:', error);
@@ -140,11 +144,12 @@ function isRateLimited(ip) {
 
 app.get('/proxy/:encodedUrl', async (req, res) => {
   try {
-    // 阶段 2.1 / 2.3：单次鉴权，统一为「未设 PASSWORD = 无密码」
+    // 代理鉴权接受普通密码或管理员密码。
     const isAuthorized = await validateAuth({
       authHash: req.query.auth,
       timestamp: req.query.t,
       serverPassword: config.password,
+      alternatePasswords: [config.adminPassword],
     });
     if (!isAuthorized) {
       return res.status(401).json({
@@ -267,13 +272,17 @@ app.use((req, res) => {
 
 app.listen(config.port, () => {
   console.log(`服务器运行在 http://localhost:${config.port}`);
-  if (config.password !== '') {
+  if (config.password !== '' || config.adminPassword !== '') {
     console.log('用户登录密码已设置');
   } else {
     console.log('警告: 未设置 PASSWORD 环境变量，代理将进入无密码模式');
   }
   if (config.debug) {
     console.log('调试模式已启用');
-    console.log('配置:', { ...config, password: config.password ? '******' : '' });
+    console.log('配置:', {
+      ...config,
+      password: config.password ? '******' : '',
+      adminPassword: config.adminPassword ? '******' : '',
+    });
   }
 });

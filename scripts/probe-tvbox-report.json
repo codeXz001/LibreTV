@@ -1,0 +1,335 @@
+{
+  "scanned": [
+    {
+      "name": "🚀2-饭太硬推荐",
+      "url": "http://fty.xxooo.cf/tv",
+      "status": 200,
+      "ms": 506,
+      "cls": "not-json",
+      "len": 20195,
+      "finalUrl": "http://fty.xxooo.cf/tv",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀3-小盒子4K",
+      "url": "http://xhztv.top/4k.json",
+      "status": 200,
+      "ms": 3584,
+      "cls": "not-json",
+      "len": 28198,
+      "finalUrl": "http://xhztv.top/4k.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀4-健康家用",
+      "url": "https://gitlab.com/noimank/tvbox/-/raw/main/tvbox1.json",
+      "status": 200,
+      "ms": 3177,
+      "cls": "tvbox",
+      "len": 33446,
+      "finalUrl": "https://gitlab.com/noimank/tvbox/-/raw/main/tvbox1.json",
+      "embeddedCMSSites": []
+    },
+    {
+      "name": "🚀5-王二小",
+      "url": "http://tvbox.xn--4kq62z5rby2qupq9ub.top/",
+      "status": 200,
+      "ms": 2018,
+      "cls": "not-json",
+      "len": 2997,
+      "finalUrl": "https://www.xn--4kq62z5rby2qupq9ub.top/",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀6-FongMI线路",
+      "url": "https://gh-proxy.com/raw.githubusercontent.com//gaotianliuyun/gao/master/0827.json",
+      "status": 200,
+      "ms": 261,
+      "cls": "tvbox",
+      "len": 9383,
+      "finalUrl": "https://gh-proxy.com/raw.githubusercontent.com//gaotianliuyun/gao/master/0827.json",
+      "embeddedCMSSites": [
+        {
+          "key": "haiwaikan",
+          "name": "海外看",
+          "api": "https://haiwaikan.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "暴風",
+          "name": "暴風",
+          "api": "https://bfzyapi.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "索尼",
+          "name": "索尼 ",
+          "api": "https://suoniapi.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "快帆",
+          "name": "快帆",
+          "api": "https://api.kuaifan.tv/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "量子",
+          "name": "量子",
+          "api": "https://cj.lziapi.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "非凡",
+          "name": "非凡",
+          "api": "http://cj.ffzyapi.com/api.php/provide/vod",
+          "type": 1
+        }
+      ]
+    },
+    {
+      "name": "🚀7-香雅情",
+      "url": "https://gh-proxy.org/https:/raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json",
+      "status": 200,
+      "ms": 772,
+      "cls": "not-json",
+      "len": 23106,
+      "finalUrl": "https://gh-proxy.org/https:/raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀9-欧歌4K",
+      "url": "http://tv.nxog.top/m/",
+      "status": 200,
+      "ms": 179,
+      "cls": "not-json",
+      "len": 4697,
+      "finalUrl": "http://tv.nxog.top/m/",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀10-高天流云js",
+      "url": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/js.json",
+      "status": 200,
+      "ms": 299,
+      "cls": "tvbox",
+      "len": 45597,
+      "finalUrl": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/js.json",
+      "embeddedCMSSites": []
+    },
+    {
+      "name": "🚀11-高天流云 XYQ",
+      "url": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/XYQ.json",
+      "status": 200,
+      "ms": 322,
+      "cls": "not-json",
+      "len": 18001,
+      "finalUrl": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/XYQ.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀12-影探线路",
+      "url": "http://www.lyyytv.cn/yt/yt.json",
+      "status": 404,
+      "ms": 59,
+      "cls": "not-json",
+      "len": 548,
+      "finalUrl": "http://www.lyyytv.cn/yt/yt.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀13-南风",
+      "url": "https://gh-proxy.com/https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",
+      "status": 200,
+      "ms": 199,
+      "cls": "not-json",
+      "len": 138185,
+      "finalUrl": "https://gh-proxy.com/https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀14-无意线路",
+      "url": "https://www.wya6.cn/tv/yc.json",
+      "status": 200,
+      "ms": 320,
+      "cls": "not-json",
+      "len": 30444,
+      "finalUrl": "https://www.wya6.cn/tv/yc.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    }
+  ],
+  "cmsAddable": [],
+  "tvboxConfigs": [
+    {
+      "name": "🚀4-健康家用",
+      "url": "https://gitlab.com/noimank/tvbox/-/raw/main/tvbox1.json",
+      "status": 200,
+      "ms": 3177,
+      "cls": "tvbox",
+      "len": 33446,
+      "finalUrl": "https://gitlab.com/noimank/tvbox/-/raw/main/tvbox1.json",
+      "embeddedCMSSites": []
+    },
+    {
+      "name": "🚀6-FongMI线路",
+      "url": "https://gh-proxy.com/raw.githubusercontent.com//gaotianliuyun/gao/master/0827.json",
+      "status": 200,
+      "ms": 261,
+      "cls": "tvbox",
+      "len": 9383,
+      "finalUrl": "https://gh-proxy.com/raw.githubusercontent.com//gaotianliuyun/gao/master/0827.json",
+      "embeddedCMSSites": [
+        {
+          "key": "haiwaikan",
+          "name": "海外看",
+          "api": "https://haiwaikan.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "暴風",
+          "name": "暴風",
+          "api": "https://bfzyapi.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "索尼",
+          "name": "索尼 ",
+          "api": "https://suoniapi.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "快帆",
+          "name": "快帆",
+          "api": "https://api.kuaifan.tv/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "量子",
+          "name": "量子",
+          "api": "https://cj.lziapi.com/api.php/provide/vod",
+          "type": 1
+        },
+        {
+          "key": "非凡",
+          "name": "非凡",
+          "api": "http://cj.ffzyapi.com/api.php/provide/vod",
+          "type": 1
+        }
+      ]
+    },
+    {
+      "name": "🚀10-高天流云js",
+      "url": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/js.json",
+      "status": 200,
+      "ms": 299,
+      "cls": "tvbox",
+      "len": 45597,
+      "finalUrl": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/js.json",
+      "embeddedCMSSites": []
+    }
+  ],
+  "dead": [
+    {
+      "name": "🚀1-肥猫",
+      "url": "http://肥猫.com",
+      "err": "UND_ERR_CONNECT_TIMEOUT",
+      "ms": 10688
+    },
+    {
+      "name": "🚀2-饭太硬推荐",
+      "url": "http://fty.xxooo.cf/tv",
+      "status": 200,
+      "ms": 506,
+      "cls": "not-json",
+      "len": 20195,
+      "finalUrl": "http://fty.xxooo.cf/tv",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀3-小盒子4K",
+      "url": "http://xhztv.top/4k.json",
+      "status": 200,
+      "ms": 3584,
+      "cls": "not-json",
+      "len": 28198,
+      "finalUrl": "http://xhztv.top/4k.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀5-王二小",
+      "url": "http://tvbox.xn--4kq62z5rby2qupq9ub.top/",
+      "status": 200,
+      "ms": 2018,
+      "cls": "not-json",
+      "len": 2997,
+      "finalUrl": "https://www.xn--4kq62z5rby2qupq9ub.top/",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀7-香雅情",
+      "url": "https://gh-proxy.org/https:/raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json",
+      "status": 200,
+      "ms": 772,
+      "cls": "not-json",
+      "len": 23106,
+      "finalUrl": "https://gh-proxy.org/https:/raw.githubusercontent.com/xyq254245/xyqonlinerule/main/XYQTVBox.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀8-巧计线路",
+      "url": "http://pandown.pro/tvbox/tvbox.json",
+      "err": "ECONNREFUSED",
+      "ms": 3142
+    },
+    {
+      "name": "🚀9-欧歌4K",
+      "url": "http://tv.nxog.top/m/",
+      "status": 200,
+      "ms": 179,
+      "cls": "not-json",
+      "len": 4697,
+      "finalUrl": "http://tv.nxog.top/m/",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀11-高天流云 XYQ",
+      "url": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/XYQ.json",
+      "status": 200,
+      "ms": 322,
+      "cls": "not-json",
+      "len": 18001,
+      "finalUrl": "https://gh-proxy.com/raw.githubusercontent.com/gaotianliuyun/gao/master/XYQ.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀12-影探线路",
+      "url": "http://www.lyyytv.cn/yt/yt.json",
+      "status": 404,
+      "ms": 59,
+      "cls": "not-json",
+      "len": 548,
+      "finalUrl": "http://www.lyyytv.cn/yt/yt.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀13-南风",
+      "url": "https://gh-proxy.com/https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",
+      "status": 200,
+      "ms": 199,
+      "cls": "not-json",
+      "len": 138185,
+      "finalUrl": "https://gh-proxy.com/https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    },
+    {
+      "name": "🚀14-无意线路",
+      "url": "https://www.wya6.cn/tv/yc.json",
+      "status": 200,
+      "ms": 320,
+      "cls": "not-json",
+      "len": 30444,
+      "finalUrl": "https://www.wya6.cn/tv/yc.json",
+      "note": "非苹果CMS/非TVBox: not-json"
+    }
+  ]
+}

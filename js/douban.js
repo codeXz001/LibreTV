@@ -179,34 +179,28 @@ function fillAndSearch(title) {
 // 填充搜索框，确保豆瓣资源API被选中，然后执行搜索
 async function fillAndSearchWithDouban(title) {
     if (!title) return;
-    
-    // 安全处理标题，防止XSS
-    const safeTitle = title
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    
-    // 注：原「自动选择豆瓣资源API(dbzy)」逻辑已移除——
-    // dbzy（https://dbzy.tv）实测返回 code:1002 禁止关键词搜索，已从 API_SITES 排除。
-    
+
+    // 注：不要对标题做 HTML 转义再搜索——转义后的 &lt;/&gt;/&quot; 会作为字面量发给源站，
+    // 导致含特殊字符的标题搜不到。原始标题仅用于请求；DOM 输出处的转义由渲染层负责。
+
     // 填充搜索框并执行搜索
     const input = document.getElementById('searchInput');
     if (input) {
-        input.value = safeTitle;
+        input.value = title;
         await search(); // 使用已有的search函数执行搜索
         
         // 更新浏览器URL，使其反映当前的搜索状态
         try {
             // 使用URI编码确保特殊字符能够正确显示
-            const encodedQuery = encodeURIComponent(safeTitle);
+            const encodedQuery = encodeURIComponent(title);
             // 使用HTML5 History API更新URL，不刷新页面
             window.history.pushState(
-                { search: safeTitle }, 
-                `搜索: ${safeTitle} - LibreTV`, 
+                { search: title },
+                `搜索: ${title} - LibreTV`,
                 `/s=${encodedQuery}`
             );
             // 更新页面标题
-            document.title = `搜索: ${safeTitle} - LibreTV`;
+            document.title = `搜索: ${title} - LibreTV`;
         } catch (e) {
             console.error('更新浏览器历史失败:', e);
         }
@@ -425,10 +419,62 @@ function setCachedDouban(url, data) {
     }
 }
 
+// —— 豆瓣数据 localStorage 持久缓存(刷新页面后首屏秒出;内存缓存 TTL 10 分钟) ——
+// 首页默认「电影」分类依赖豆瓣热门/最新接口,服务端代理链路通常 1-3s,
+// 持久化后 10 分钟内的再次访问直接命中本地缓存,后台请求自动刷新。
+const DOUBAN_LS_PREFIX = 'doubanCache_';
+const DOUBAN_LS_TTL = 10 * 60 * 1000;   // 与内存缓存一致
+const DOUBAN_LS_MAX = 20;               // 最多缓存 20 个 URL(首页热门/最新/翻页够用)
+
+function getDoubanLSCache(url) {
+    try {
+        const raw = localStorage.getItem(DOUBAN_LS_PREFIX + url);
+        if (!raw) return null;
+        const rec = JSON.parse(raw);
+        if (rec && rec.ts && rec.data && (Date.now() - rec.ts) < DOUBAN_LS_TTL) {
+            return rec.data;
+        }
+        localStorage.removeItem(DOUBAN_LS_PREFIX + url);
+    } catch (e) { /* 损坏数据/配额异常静默 */ }
+    return null;
+}
+
+function setDoubanLSCache(url, data) {
+    try {
+        // 超过上限时删除最旧一条(仅写入时遍历,频率低,开销可接受)
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(DOUBAN_LS_PREFIX)) keys.push(k);
+        }
+        if (keys.length >= DOUBAN_LS_MAX) {
+            let oldestKey = null;
+            let oldestTs = Infinity;
+            for (const k of keys) {
+                try {
+                    const rec = JSON.parse(localStorage.getItem(k));
+                    if (rec && rec.ts < oldestTs) {
+                        oldestTs = rec.ts;
+                        oldestKey = k;
+                    }
+                } catch (e) { /* 忽略坏记录 */ }
+            }
+            if (oldestKey) localStorage.removeItem(oldestKey);
+        }
+        localStorage.setItem(DOUBAN_LS_PREFIX + url, JSON.stringify({ ts: Date.now(), data }));
+    } catch (e) { /* 配额满等异常静默 */ }
+}
+
 async function fetchDoubanData(url) {
     // 缓存命中直接返回（同一 tag/page 的推荐 10 分钟内有效）
     const hit = getCachedDouban(url);
     if (hit) return hit;
+    // 持久缓存兜底（刷新页面后首屏秒出，后台请求自动刷新）
+    const lsHit = getDoubanLSCache(url);
+    if (lsHit) {
+        setCachedDouban(url, lsHit);
+        return lsHit;
+    }
 
     // 添加超时控制
     const controller = new AbortController();
@@ -460,16 +506,25 @@ async function fetchDoubanData(url) {
         
         const data = await response.json();
         setCachedDouban(url, data);
+        setDoubanLSCache(url, data);
         return data;
     } catch (err) {
         console.error("豆瓣 API 请求失败（直接代理）：", err);
         
         // 失败后尝试备用方法：作为备选
         const fallbackUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        
+
         try {
-            const fallbackResponse = await fetch(fallbackUrl);
-            
+            // 备用请求同样受超时约束，避免无超时请求拖住首页
+            const fallbackController = new AbortController();
+            const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000);
+            let fallbackResponse;
+            try {
+                fallbackResponse = await fetch(fallbackUrl, { signal: fallbackController.signal });
+            } finally {
+                clearTimeout(fallbackTimeoutId);
+            }
+
             if (!fallbackResponse.ok) {
                 throw new Error(`备用API请求失败! 状态: ${fallbackResponse.status}`);
             }
@@ -480,6 +535,7 @@ async function fetchDoubanData(url) {
             if (data && data.contents) {
                 const parsed = JSON.parse(data.contents);
                 setCachedDouban(url, parsed);
+                setDoubanLSCache(url, parsed);
                 return parsed;
             } else {
                 throw new Error("无法获取有效数据");

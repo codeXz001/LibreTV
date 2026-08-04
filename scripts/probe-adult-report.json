@@ -1,0 +1,436 @@
+{
+  "scanned": [
+    {
+      "api": "https://www.xrbsp.com/api/json.php",
+      "name": "淫水机资源",
+      "status": 200,
+      "ms": 834,
+      "cls": "cms",
+      "len": 36231,
+      "finalUrl": "https://www.xrbsp.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video31.avnyg.com/video/20220530/df5c12a709704582abe"
+      }
+    },
+    {
+      "api": "http://fhapi9.com/api.php/provide/vod/",
+      "name": "番号资源",
+      "status": 200,
+      "ms": 749,
+      "cls": "cms",
+      "len": 6325,
+      "finalUrl": "http://fhapi9.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "第1集$https://2605.fhbbff.com/20260802/ZH6iwCZO/index.m3u8"
+      }
+    },
+    {
+      "api": "https://155api.com/api.php/provide/vod/",
+      "name": "155资源",
+      "status": 200,
+      "ms": 960,
+      "cls": "cms",
+      "len": 7942,
+      "finalUrl": "https://155api.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "第1集$https://2607.v155p.com/20260803/LhMRwTpk/index.m3u8"
+      }
+    },
+    {
+      "api": "https://155api.com/api.php/provide/vod/at/json",
+      "name": "155资源(at)",
+      "status": 200,
+      "ms": 214,
+      "cls": "cms",
+      "len": 7927,
+      "finalUrl": "https://155api.com/api.php/provide/vod/at/json",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "第1集$https://2607.v155p.com/20260803/LhMRwTpk/index.m3u8"
+      }
+    },
+    {
+      "api": "https://jkunzyapi.com/api.php/provide/vod/",
+      "name": "鸡坤资源",
+      "status": 200,
+      "ms": 643,
+      "cls": "cms",
+      "len": 13243,
+      "finalUrl": "https://jkunzyapi.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 50,
+        "hasM3u8": true,
+        "playSample": "高清$https://jkhabkrqjbj.com/20260802/DpD9kymU/index.m3u8"
+      }
+    },
+    {
+      "api": "https://www.pgxdy.com/api/json.php",
+      "name": "黄AV资源",
+      "status": 200,
+      "ms": 1154,
+      "cls": "cms",
+      "len": 35747,
+      "finalUrl": "https://www.pgxdy.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video57.hav36.com/video/20230703/d3b62df3d7d54320547"
+      }
+    },
+    {
+      "api": "https://www.gdlsp.com/api/json.php",
+      "name": "香奶儿资源",
+      "status": 200,
+      "ms": 658,
+      "cls": "cms",
+      "len": 35555,
+      "finalUrl": "https://www.gdlsp.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video13.balecao.com/video/20220121/0d33b13c823736e94"
+      }
+    },
+    {
+      "api": "https://www.msnii.com/api/json.php",
+      "name": "美少女资源",
+      "status": 200,
+      "ms": 831,
+      "cls": "cms",
+      "len": 35761,
+      "finalUrl": "https://www.msnii.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video57.msn17.com/video/20230611/6f229f021c13485849b"
+      }
+    },
+    {
+      "api": "https://www.kxgav.com/api/json.php",
+      "name": "白嫖资源",
+      "status": 200,
+      "ms": 636,
+      "cls": "cms",
+      "len": 35484,
+      "finalUrl": "https://www.kxgav.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video23.bpzy1.com/video/20220507/f1b42f8d065c5a2b642"
+      }
+    },
+    {
+      "api": "https://lbapi9.com/api.php/provide/vod/",
+      "name": "乐播资源",
+      "status": 200,
+      "ms": 1974,
+      "cls": "cms",
+      "len": 6077,
+      "finalUrl": "https://lbapi9.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "在线播放$https://2606.lbsl2026.com/20260802/o1LSJMeV/index.m3u8"
+      }
+    },
+    {
+      "api": "https://lbapi9.com/api.php/provide/vod/at/json",
+      "name": "乐播资源(at)",
+      "status": 200,
+      "ms": 487,
+      "cls": "cms",
+      "len": 6077,
+      "finalUrl": "https://lbapi9.com/api.php/provide/vod/at/json",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "在线播放$https://2606.lbsl2026.com/20260802/o1LSJMeV/index.m3u8"
+      }
+    },
+    {
+      "api": "https://api.ddapi.cc/api.php/provide/vod/",
+      "name": "滴滴资源",
+      "status": 200,
+      "ms": 968,
+      "cls": "cms",
+      "len": 7325,
+      "finalUrl": "https://api.ddapi.cc/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "HD$https://v.didibo2.com/20260803/TWXcffxh/index.m3u8"
+      }
+    },
+    {
+      "api": "https://api.ddapi.cc/api.php/provide/vod/at/json",
+      "name": "滴滴资源(at)",
+      "status": 200,
+      "ms": 344,
+      "cls": "cms",
+      "len": 7325,
+      "finalUrl": "https://api.ddapi.cc/api.php/provide/vod/at/json",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "HD$https://v.didibo2.com/20260803/TWXcffxh/index.m3u8"
+      }
+    }
+  ],
+  "addable": [
+    {
+      "api": "https://www.xrbsp.com/api/json.php",
+      "name": "淫水机资源",
+      "status": 200,
+      "ms": 834,
+      "cls": "cms",
+      "len": 36231,
+      "finalUrl": "https://www.xrbsp.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video31.avnyg.com/video/20220530/df5c12a709704582abe"
+      }
+    },
+    {
+      "api": "http://fhapi9.com/api.php/provide/vod/",
+      "name": "番号资源",
+      "status": 200,
+      "ms": 749,
+      "cls": "cms",
+      "len": 6325,
+      "finalUrl": "http://fhapi9.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "第1集$https://2605.fhbbff.com/20260802/ZH6iwCZO/index.m3u8"
+      }
+    },
+    {
+      "api": "https://155api.com/api.php/provide/vod/",
+      "name": "155资源",
+      "status": 200,
+      "ms": 960,
+      "cls": "cms",
+      "len": 7942,
+      "finalUrl": "https://155api.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "第1集$https://2607.v155p.com/20260803/LhMRwTpk/index.m3u8"
+      }
+    },
+    {
+      "api": "https://155api.com/api.php/provide/vod/at/json",
+      "name": "155资源(at)",
+      "status": 200,
+      "ms": 214,
+      "cls": "cms",
+      "len": 7927,
+      "finalUrl": "https://155api.com/api.php/provide/vod/at/json",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "第1集$https://2607.v155p.com/20260803/LhMRwTpk/index.m3u8"
+      }
+    },
+    {
+      "api": "https://jkunzyapi.com/api.php/provide/vod/",
+      "name": "鸡坤资源",
+      "status": 200,
+      "ms": 643,
+      "cls": "cms",
+      "len": 13243,
+      "finalUrl": "https://jkunzyapi.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 50,
+        "hasM3u8": true,
+        "playSample": "高清$https://jkhabkrqjbj.com/20260802/DpD9kymU/index.m3u8"
+      }
+    },
+    {
+      "api": "https://www.pgxdy.com/api/json.php",
+      "name": "黄AV资源",
+      "status": 200,
+      "ms": 1154,
+      "cls": "cms",
+      "len": 35747,
+      "finalUrl": "https://www.pgxdy.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video57.hav36.com/video/20230703/d3b62df3d7d54320547"
+      }
+    },
+    {
+      "api": "https://www.gdlsp.com/api/json.php",
+      "name": "香奶儿资源",
+      "status": 200,
+      "ms": 658,
+      "cls": "cms",
+      "len": 35555,
+      "finalUrl": "https://www.gdlsp.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video13.balecao.com/video/20220121/0d33b13c823736e94"
+      }
+    },
+    {
+      "api": "https://www.msnii.com/api/json.php",
+      "name": "美少女资源",
+      "status": 200,
+      "ms": 831,
+      "cls": "cms",
+      "len": 35761,
+      "finalUrl": "https://www.msnii.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video57.msn17.com/video/20230611/6f229f021c13485849b"
+      }
+    },
+    {
+      "api": "https://www.kxgav.com/api/json.php",
+      "name": "白嫖资源",
+      "status": 200,
+      "ms": 636,
+      "cls": "cms",
+      "len": 35484,
+      "finalUrl": "https://www.kxgav.com/api/json.php",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "https://video23.bpzy1.com/video/20220507/f1b42f8d065c5a2b642"
+      }
+    },
+    {
+      "api": "https://lbapi9.com/api.php/provide/vod/",
+      "name": "乐播资源",
+      "status": 200,
+      "ms": 1974,
+      "cls": "cms",
+      "len": 6077,
+      "finalUrl": "https://lbapi9.com/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "在线播放$https://2606.lbsl2026.com/20260802/o1LSJMeV/index.m3u8"
+      }
+    },
+    {
+      "api": "https://lbapi9.com/api.php/provide/vod/at/json",
+      "name": "乐播资源(at)",
+      "status": 200,
+      "ms": 487,
+      "cls": "cms",
+      "len": 6077,
+      "finalUrl": "https://lbapi9.com/api.php/provide/vod/at/json",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "在线播放$https://2606.lbsl2026.com/20260802/o1LSJMeV/index.m3u8"
+      }
+    },
+    {
+      "api": "https://api.ddapi.cc/api.php/provide/vod/",
+      "name": "滴滴资源",
+      "status": 200,
+      "ms": 968,
+      "cls": "cms",
+      "len": 7325,
+      "finalUrl": "https://api.ddapi.cc/api.php/provide/vod/",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "HD$https://v.didibo2.com/20260803/TWXcffxh/index.m3u8"
+      }
+    },
+    {
+      "api": "https://api.ddapi.cc/api.php/provide/vod/at/json",
+      "name": "滴滴资源(at)",
+      "status": 200,
+      "ms": 344,
+      "cls": "cms",
+      "len": 7325,
+      "finalUrl": "https://api.ddapi.cc/api.php/provide/vod/at/json",
+      "search": {
+        "ok": true,
+        "via": "搜索wd=1",
+        "total": 20,
+        "hasM3u8": true,
+        "playSample": "HD$https://v.didibo2.com/20260803/TWXcffxh/index.m3u8"
+      }
+    }
+  ],
+  "dead": [
+    {
+      "api": "https://api.apilyzy.com/api.php/provide/vod/",
+      "name": "老鸭资源",
+      "err": "ENOTFOUND",
+      "ms": 78
+    },
+    {
+      "api": "https://www.jingpinx.com/api.php/provide/vod/",
+      "name": "精品资源",
+      "err": "ECONNRESET",
+      "ms": 1281
+    }
+  ]
+}

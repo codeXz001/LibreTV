@@ -1,9 +1,8 @@
 // proxy-core/auth.mjs
-// 跨平台共享的代理鉴权（阶段 2.3 统一为「未设 PASSWORD = 无密码」）
+// 跨平台共享的代理鉴权
 
 /**
  * 异步计算字符串的 SHA-256 十六进制摘要。
- * 在 Cloudflare Workers / Netlify Edge / Node 18+ 都可用。
  *
  * @param {string} text
  * @returns {Promise<string>}
@@ -21,27 +20,34 @@ const DEFAULT_MAX_AGE_MS = 10 * 60 * 1000;
 /**
  * 平台无关的鉴权校验。
  *
- * 行为（与 Cloudflare / Vercel 现有实现一致）：
- *   - 未设置 serverPassword → 视为无密码模式，返回 true
- *   - authHash 不匹配       → false
- *   - timestamp 过期或非法  → false
+ * 未设置任何密码时为无密码模式；设置多个密码时，任一已配置密码
+ * 对应的哈希都可以通过代理鉴权。权限控制仍由前端访问模式负责，
+ * 代理只验证请求是否来自已验证会话。
  *
  * @param {object} args
  * @param {string|null|undefined} args.authHash - 客户端传来的 SHA-256 哈希
  * @param {string|null|undefined} args.timestamp - 客户端传来的时间戳（毫秒）
- * @param {string} args.serverPassword - 服务端环境变量 PASSWORD 的明文
+ * @param {string} args.serverPassword - 普通访问密码
+ * @param {string[]} [args.alternatePasswords] - 额外访问密码
  * @param {number} [args.maxAgeMs] - 时间戳有效期，默认 10 分钟
  * @returns {Promise<boolean>}
  */
-export async function validateAuth({ authHash, timestamp, serverPassword, maxAgeMs = DEFAULT_MAX_AGE_MS }) {
-  // 未设密码 = 无密码模式（与 CF / Vercel 现状一致）
-  if (!serverPassword) return true;
+export async function validateAuth({
+  authHash,
+  timestamp,
+  serverPassword,
+  alternatePasswords = [],
+  maxAgeMs = DEFAULT_MAX_AGE_MS,
+}) {
+  const passwords = [serverPassword, ...alternatePasswords]
+    .filter(password => typeof password === 'string' && password.length > 0);
 
-  // 计算服务端哈希
-  const serverHash = await sha256Hex(serverPassword);
-  if (!authHash || authHash !== serverHash) return false;
+  // 未设置密码 = 无密码模式
+  if (!passwords.length) return true;
 
-  // 时间戳校验（阶段 2.4 NaN 防护）
+  const serverHashes = await Promise.all(passwords.map(sha256Hex));
+  if (!authHash || !serverHashes.includes(authHash)) return false;
+
   if (timestamp !== undefined && timestamp !== null && timestamp !== '') {
     const t = parseInt(timestamp, 10);
     if (isNaN(t)) return false;

@@ -2,7 +2,7 @@
 // Vercel Edge Middleware：把 PASSWORD SHA-256 注入到 HTML
 // 公共逻辑下沉到 inject-env-core，本文件只剩 Vercel Edge 运行时差异
 
-import { sha256Hex, injectPasswordHash } from './inject-env-core/index.mjs';
+import { sha256Hex, injectPasswordConfig } from './inject-env-core/index.mjs';
 
 export default async function middleware(request) {
   const url = new URL(request.url);
@@ -18,9 +18,11 @@ export default async function middleware(request) {
 
   const originalHtml = await response.text();
   const password = process.env.PASSWORD || '';
+  const adminPassword = process.env.ADMIN_PASSWORD || '';
   const passwordHash = password ? await sha256Hex(password) : '';
+  const adminPasswordHash = adminPassword ? await sha256Hex(adminPassword) : '';
 
-  const modifiedHtml = injectPasswordHash(originalHtml, passwordHash);
+  const modifiedHtml = injectPasswordConfig(originalHtml, passwordHash, adminPasswordHash);
 
   return new Response(modifiedHtml, {
     status: response.status,

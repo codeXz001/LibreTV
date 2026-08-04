@@ -41,6 +41,7 @@ export async function onRequest(context) {
       authHash: url.searchParams.get('auth'),
       timestamp: url.searchParams.get('t'),
       serverPassword: env.PASSWORD,
+      alternatePasswords: [env.ADMIN_PASSWORD],
     });
     if (!isValidAuth) {
       return new Response(JSON.stringify({
