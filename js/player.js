@@ -1,59 +1,6 @@
 const selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '[]');
 const customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
-// 改进返回功能
-function goBack(event) {
-    // 防止默认链接行为
-    if (event) event.preventDefault();
-    
-    // 1. 优先检查URL参数中的returnUrl
-    const urlParams = new URLSearchParams(window.location.search);
-    const returnUrl = urlParams.get('returnUrl');
-    
-    if (returnUrl) {
-        // 如果URL中有returnUrl参数，优先使用
-        window.location.href = decodeURIComponent(returnUrl);
-        return;
-    }
-    
-    // 2. 检查localStorage中保存的lastPageUrl
-    const lastPageUrl = localStorage.getItem('lastPageUrl');
-    if (lastPageUrl && lastPageUrl !== window.location.href) {
-        window.location.href = lastPageUrl;
-        return;
-    }
-    
-    // 3. 检查是否是从搜索页面进入的播放器
-    const referrer = document.referrer;
-    
-    // 检查 referrer 是否包含搜索参数
-    if (referrer && (referrer.includes('/s=') || referrer.includes('?s='))) {
-        // 如果是从搜索页面来的，返回到搜索页面
-        window.location.href = referrer;
-        return;
-    }
-    
-    // 4. 如果是在iframe中打开的，尝试关闭iframe
-    if (window.self !== window.top) {
-        try {
-            // 尝试调用父窗口的关闭播放器函数
-            window.parent.closeVideoPlayer && window.parent.closeVideoPlayer();
-            return;
-        } catch (e) {
-            console.error('调用父窗口closeVideoPlayer失败:', e);
-        }
-    }
-    
-    // 5. 无法确定上一页，则返回首页
-    if (!referrer || referrer === '') {
-        window.location.href = '/';
-        return;
-    }
-    
-    // 6. 以上都不满足，使用默认行为：返回上一页
-    window.history.back();
-}
-
 // 页面加载时保存当前URL到localStorage，作为返回目标
 window.addEventListener('load', function () {
     // 保存前一页面URL
@@ -265,18 +212,11 @@ function initializePageContent() {
     currentVideoTitle = title || localStorage.getItem('currentVideoTitle') || '未知视频';
     currentEpisodeIndex = index;
 
-    // 设置自动连播开关状态
+    // 设置自动连播状态（开关 UI 已移除，默认跟随本地保存值）
     autoplayEnabled = localStorage.getItem('autoplayEnabled') !== 'false'; // 默认为true
-    document.getElementById('autoplayToggle').checked = autoplayEnabled;
 
     // 获取广告过滤设置
     adFilteringEnabled = localStorage.getItem(PLAYER_CONFIG.adFilteringStorage) !== 'false'; // 默认为true
-
-    // 监听自动连播开关变化
-    document.getElementById('autoplayToggle').addEventListener('change', function (e) {
-        autoplayEnabled = e.target.checked;
-        localStorage.setItem('autoplayEnabled', autoplayEnabled);
-    });
 
     // 优先使用URL传递的集数信息，否则从localStorage获取
     try {
@@ -317,7 +257,6 @@ function initializePageContent() {
 
     // 设置页面标题
     document.title = currentVideoTitle + ' - LibreTV播放器';
-    document.getElementById('videoTitle').textContent = currentVideoTitle;
 
     // 初始化播放器
     if (videoUrl) {
@@ -329,17 +268,8 @@ function initializePageContent() {
     // 渲染源信息
     renderResourceInfoBar();
 
-    // 更新集数信息
-    updateEpisodeInfo();
-
     // 渲染集数列表
     renderEpisodes();
-
-    // 更新按钮状态
-    updateButtonStates();
-
-    // 更新排序按钮状态
-    updateOrderButton();
 
     // 添加对进度条的监听，确保点击准确跳转
     setTimeout(() => {
@@ -457,6 +387,9 @@ function showShortcutHint(text, direction) {
     const hintElement = document.getElementById('shortcutHint');
     const textElement = document.getElementById('shortcutText');
     const iconElement = document.getElementById('shortcutIcon');
+
+    // 提示浮层已随精简版页面移除；保留函数以免快捷键/长按倍速调用报错
+    if (!hintElement || !textElement || !iconElement) return;
 
     // 清除之前的超时
     if (shortcutHintTimeout) {
@@ -918,43 +851,6 @@ function showError(message) {
     if (errorMsgEl) errorMsgEl.textContent = message;
 }
 
-// 更新集数信息
-function updateEpisodeInfo() {
-    if (currentEpisodes.length > 0) {
-        document.getElementById('episodeInfo').textContent = `第 ${currentEpisodeIndex + 1}/${currentEpisodes.length} 集`;
-    } else {
-        document.getElementById('episodeInfo').textContent = '无集数信息';
-    }
-}
-
-// 更新按钮状态
-function updateButtonStates() {
-    const prevButton = document.getElementById('prevButton');
-    const nextButton = document.getElementById('nextButton');
-
-    // 处理上一集按钮
-    if (currentEpisodeIndex > 0) {
-        prevButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
-        prevButton.classList.add('bg-[#222]', 'hover:bg-[#333]');
-        prevButton.removeAttribute('disabled');
-    } else {
-        prevButton.classList.add('bg-gray-700', 'cursor-not-allowed');
-        prevButton.classList.remove('bg-[#222]', 'hover:bg-[#333]');
-        prevButton.setAttribute('disabled', '');
-    }
-
-    // 处理下一集按钮
-    if (currentEpisodeIndex < currentEpisodes.length - 1) {
-        nextButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
-        nextButton.classList.add('bg-[#222]', 'hover:bg-[#333]');
-        nextButton.removeAttribute('disabled');
-    } else {
-        nextButton.classList.add('bg-gray-700', 'cursor-not-allowed');
-        nextButton.classList.remove('bg-[#222]', 'hover:bg-[#333]');
-        nextButton.setAttribute('disabled', '');
-    }
-}
-
 // 渲染集数按钮
 function renderEpisodes() {
     const episodesList = document.getElementById('episodesList');
@@ -1052,8 +948,6 @@ function playEpisode(index) {
     }
 
     // 更新UI
-    updateEpisodeInfo();
-    updateButtonStates();
     renderEpisodes();
 
     // 重置用户点击位置记录
@@ -1074,45 +968,6 @@ function playPreviousEpisode() {
 function playNextEpisode() {
     if (currentEpisodeIndex < currentEpisodes.length - 1) {
         playEpisode(currentEpisodeIndex + 1);
-    }
-}
-
-// 复制播放链接
-function copyLinks() {
-    // 尝试从URL中获取参数
-    const urlParams = new URLSearchParams(window.location.search);
-    const linkUrl = urlParams.get('url') || '';
-    if (linkUrl !== '') {
-        navigator.clipboard.writeText(linkUrl).then(() => {
-            showToast('播放链接已复制', 'success');
-        }).catch(err => {
-            showToast('复制失败，请检查浏览器权限', 'error');
-        });
-    }
-}
-
-// 切换集数排序
-function toggleEpisodeOrder() {
-    episodesReversed = !episodesReversed;
-
-    // 保存到localStorage
-    localStorage.setItem('episodesReversed', episodesReversed);
-
-    // 重新渲染集数列表
-    renderEpisodes();
-
-    // 更新排序按钮
-    updateOrderButton();
-}
-
-// 更新排序按钮状态
-function updateOrderButton() {
-    const orderText = document.getElementById('orderText');
-    const orderIcon = document.getElementById('orderIcon');
-
-    if (orderText && orderIcon) {
-        orderText.textContent = episodesReversed ? '正序排列' : '倒序排列';
-        orderIcon.style.transform = episodesReversed ? 'rotate(180deg)' : '';
     }
 }
 
@@ -1523,34 +1378,6 @@ function getVideoId() {
         return `${encodeURIComponent(currentVideoUrl)}`;
     }
     return `${encodeURIComponent(currentVideoTitle)}_${currentEpisodeIndex}`;
-}
-
-let controlsLocked = false;
-function toggleControlsLock() {
-    const container = document.getElementById('playerContainer');
-    controlsLocked = !controlsLocked;
-    container.classList.toggle('controls-locked', controlsLocked);
-    const icon = document.getElementById('lockIcon');
-    // 切换图标：锁 / 解锁
-    icon.innerHTML = controlsLocked
-        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M12 15v2m0-8V7a4 4 0 00-8 0v2m8 0H4v8h16v-8H6v-6z\"/>'
-        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M15 11V7a3 3 0 00-6 0v4m-3 4h12v6H6v-6z\"/>';
-}
-
-// 支持在iframe中关闭播放器
-function closeEmbeddedPlayer() {
-    try {
-        if (window.self !== window.top) {
-            // 如果在iframe中，尝试调用父窗口的关闭方法
-            if (window.parent && typeof window.parent.closeVideoPlayer === 'function') {
-                window.parent.closeVideoPlayer();
-                return true;
-            }
-        }
-    } catch (e) {
-        console.error('尝试关闭嵌入式播放器失败:', e);
-    }
-    return false;
 }
 
 function renderResourceInfoBar() {
