@@ -263,3 +263,79 @@
     border-radius: 4px;
     padding: 2px 4px;
 }
+
+/* =========================================================
+   原生 APP 化覆写层(2026-08-05)
+   模态框:底部抽屉式(Android 风格),标题单色
+   ========================================================= */
+
+/* 模态框:移动端底部抽屉,桌面居中 */
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+.modal-content {
+    background: var(--native-surface, #15181d);
+    border: 1px solid var(--native-line, rgba(255,255,255,0.08));
+    border-radius: 16px;
+    width: 100%;
+    max-width: 56rem;
+    max-height: 90vh;
+}
+@media (max-width: 640px) {
+    .modal-overlay { align-items: flex-end; }
+    .modal-content {
+        width: 100%;
+        max-width: none;
+        max-height: 88vh;
+        border-radius: 20px 20px 0 0;
+        padding: 1.5rem 1.25rem 2rem;
+    }
+}
+
+/* 标题:去掉霓虹渐变,换单色实心 */
+.modal-title {
+    background: none;
+    -webkit-background-clip: initial;
+    -webkit-text-fill-color: initial;
+    color: var(--native-text, #f2f4f7);
+    font-size: 1.15rem;
+}
+
+/* 输入框:统一原生表面 */
+.password-input {
+    background: var(--native-surface-2, #1c2026);
+    border-color: var(--native-line, rgba(255,255,255,0.08));
+    border-radius: 12px;
+    font-size: 16px;
+    min-height: 48px;
+}
+.password-input:focus {
+    border-color: var(--native-accent, #00a8e0);
+}
+
+/* 按钮:胶囊化,触控高度 */
+.password-submit,
+.disclaimer-button {
+    border-radius: 12px;
+    min-height: 46px;
+    background: var(--native-accent, #00a8e0);
+    background-image: none;
+}
+.disclaimer-button:hover {
+    transform: none;
+    box-shadow: none;
+    filter: brightness(1.1);
+}
+
+/* Loading 内容:原生表面 */
+.loading-content {
+    background: var(--native-surface, #15181d);
+    border-color: var(--native-line, rgba(255,255,255,0.08));
+    border-radius: 16px;
+}
+
+/* 声明内容文字层级 */
+.disclaimer-content { color: var(--native-text-dim, #9aa4b2); }
+.disclaimer-content strong { color: var(--native-accent, #00a8e0); }

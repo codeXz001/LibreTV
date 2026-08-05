@@ -454,3 +454,102 @@ a.btn-neutral { text-decoration: none; display: inline-block; text-align: center
         scroll-behavior: auto;
     }
 }
+
+/* =========================================================
+   原生 APP 化覆写层(2026-08-05)
+   首页:导航/tabbar/搜索/卡片,贴近 Android 原生质感
+   ========================================================= */
+
+/* 顶部导航:实色半透明 + 更细分隔线(原生顶栏) */
+.site-nav {
+    background: rgba(11, 13, 16, 0.85);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.nav-icon-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: transparent;
+}
+.nav-icon-btn:active { background: rgba(255, 255, 255, 0.14); transform: scale(0.94); }
+
+/* 搜索框:原生搜索栏(浅面胶囊 + 无霓虹辉光) */
+.search-box-glass {
+    background: var(--native-surface-2);
+    border: 1px solid var(--native-line);
+    box-shadow: none;
+}
+.search-box-glass:focus-within {
+    border-color: var(--native-accent);
+    box-shadow: 0 0 0 3px rgba(0, 168, 224, 0.18);
+}
+.search-go-btn {
+    background: var(--native-accent);
+    background-image: none;
+    min-height: 44px;
+    font-size: 15px;
+}
+
+/* 底部 tabbar:原生 Material 底栏(实底 + 顶部分隔线) */
+.tabbar {
+    background: rgba(13, 15, 18, 0.97);
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+}
+.tabbar-btn { min-height: 56px; }
+.tabbar-btn svg { width: 24px; height: 24px; }
+.tabbar-btn.active {
+    color: var(--native-accent);
+    font-weight: 600;
+}
+/* 原生底栏:选中态用更细腻的点缀(图标上方小圆点提示) */
+.tabbar-btn.active::after {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--native-accent);
+}
+.tabbar-btn { position: relative; }
+
+/* 海报卡片:圆角加大 + 更轻的按压反馈 */
+.poster-card {
+    transition: transform 0.1s ease;
+}
+.poster-card:active { transform: scale(0.95); }
+.poster-img-wrap {
+    border-radius: 12px;
+    background: var(--native-surface);
+}
+.poster-title { color: var(--native-text); font-size: 0.75rem; }
+
+/* 分类标题:去掉装饰圆点,换原生小节标题 */
+.section-title { font-size: 1rem; font-weight: 700; }
+.hot-title::before {
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    box-shadow: none;
+    background: linear-gradient(180deg, var(--native-accent), rgba(0,168,224,0.4));
+}
+
+/* 骨架屏:更贴合新表面色的微光 */
+.skeleton-img, .skeleton-line, .lazy-img-wrap {
+    background: linear-gradient(100deg, #181c21 30%, #23282e 50%, #181c21 70%);
+    background-size: 200% 100%;
+}
+
+/* 源切换胶囊:去掉霓虹辉光 */
+.source-tab.active {
+    background: var(--native-accent);
+    background-image: none;
+    box-shadow: none;
+}
+.load-more-btn:hover {
+    border-color: var(--native-accent);
+    background: var(--native-accent-dim);
+    box-shadow: none;
+}

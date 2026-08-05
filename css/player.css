@@ -547,3 +547,72 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
 
 /* 隐藏用户名输入框 */
 #username { display: none !important; }
+
+/* =========================================================
+   原生 APP 化覆写层(2026-08-05)
+   播放页:微调表面层级与触控反馈,保持影院深色基调
+   ========================================================= */
+.player-page {
+    background: var(--pv-bg);
+}
+
+/* 源信息条:统一表面 + 更大圆角 */
+.player-source-bar {
+    background: var(--pv-panel);
+    border: 1px solid var(--pv-line);
+    border-radius: 14px;
+}
+
+/* 集数按钮:触控目标 ≥44px,按压反馈更明显 */
+.episode-btn {
+    min-height: 44px;
+    padding: 12px 0;
+    border-radius: 12px;
+    background: var(--pv-panel);
+    border-color: var(--pv-line);
+    transition: transform 0.1s ease, background-color 0.15s ease;
+}
+.episode-btn:active { transform: scale(0.94); background: var(--pv-panel-2); }
+.episode-active {
+    background: linear-gradient(135deg, rgba(0, 168, 224, 0.22), rgba(0, 168, 224, 0.08)) !important;
+    border-color: rgba(0, 168, 224, 0.5) !important;
+    box-shadow: none;
+}
+
+/* 操作条按钮:统一触控高度 */
+.action-btn {
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 999px;
+}
+.action-btn:active { transform: scale(0.95); }
+
+/* 徽标:降低霓虹感,贴近原生 chip */
+.meta-badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+.meta-badge-amber {
+    background: rgba(245, 177, 76, 0.14);
+    border-color: rgba(245, 177, 76, 0.3);
+}
+.meta-badge-cyan {
+    background: rgba(0, 168, 224, 0.12);
+    border-color: rgba(0, 168, 224, 0.28);
+}
+
+/* 选集标题装饰条:改用品牌青实条 */
+.episodes-title::before {
+    background: linear-gradient(180deg, var(--pv-accent), rgba(0, 168, 224, 0.4));
+}
+
+/* 返回按钮:按压反馈 */
+.player-back-btn:active {
+    transform: scale(0.9);
+    background: rgba(10, 14, 20, 0.85);
+}
+
+/* 开关:thumb 阴影(原生质感) */
+.slider:before {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}

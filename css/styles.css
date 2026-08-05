@@ -1043,13 +1043,188 @@ body {
         gap: 0.5rem;
         font-size: 0.8rem;
     }
-    
+
     #modal .detail-label {
         min-width: 2.5rem;
     }
-    
+
     #modal .detail-desc-content {
         max-height: 6rem;
         font-size: 0.8rem;
     }
+}
+
+/* =========================================================
+   原生 APP 化覆写层(2026-08-05)
+   原则:不影响任何功能;只改视觉/触控表现;
+       降低霓虹网页感,贴近 Android/iOS 原生深色质感。
+   ========================================================= */
+:root {
+    /* 原生化:统一深色表面层级(保留品牌青作为点缀,不再作为主色) */
+    --native-bg: #0b0d10;              /* 页面底色(OLED 近纯黑) */
+    --native-surface: #15181d;         /* 卡片/面板表面 */
+    --native-surface-2: #1c2026;       /* 按压/悬停表面 */
+    --native-line: rgba(255, 255, 255, 0.08); /* 分隔线 */
+    --native-text: #f2f4f7;
+    --native-text-dim: #9aa4b2;
+    --native-text-faint: #6b7684;
+    --native-accent: #00a8e0;          /* 品牌青(降饱和,贴近 Material 蓝) */
+    --native-accent-dim: rgba(0, 168, 224, 0.12);
+    --native-radius: 14px;             /* 卡片圆角(Android 13+ 风格) */
+    --native-radius-sm: 10px;
+}
+
+/* 触控基础:消除 300ms 点击延迟(触屏 APP 必需) */
+html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+body {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+/* 全局滚动条:细、淡,贴近原生 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 3px; }
+
+/* 页面背景:去掉赛博点阵与霓虹渐变,换纯色 OLED 深底 */
+.page-bg {
+    background: var(--native-bg) !important;
+    background-image: none !important;
+}
+
+/* 卡片:扁平化,去掉扫光动画与发光边框,贴近原生卡片 */
+.card-hover {
+    background: var(--native-surface);
+    border: 1px solid var(--native-line);
+    border-radius: var(--native-radius-sm);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.card-hover::before { display: none; }
+.card-hover:hover {
+    transform: none;
+    border-color: rgba(255,255,255,0.14);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+/* 按压反馈(替代悬停位移):原生 App 手感 */
+.card-hover:active,
+button:active { transform: scale(0.98); }
+button { transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+
+/* 渐变标题:保留品牌识别,但改单色实心(原生标题更利落) */
+.gradient-text {
+    background: none;
+    -webkit-background-clip: initial;
+    -webkit-text-fill-color: initial;
+    color: var(--native-text);
+}
+
+/* 设置面板/卡片:原生表面 */
+.settings-card {
+    background: var(--native-surface);
+    border: 1px solid var(--native-line);
+    border-radius: var(--native-radius);
+    padding: 1rem;
+}
+.settings-card-title {
+    border-bottom-color: var(--native-line);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--native-text-dim);
+}
+/* 输入框原生化(排除首页搜索框:它由 index.css 的玻璃胶囊样式接管) */
+input[type="text"]:not(.search-input),
+input[type="password"], input[type="url"], select, textarea {
+    background: var(--native-surface-2) !important;
+    border: 1px solid var(--native-line) !important;
+    border-radius: var(--native-radius-sm) !important;
+    color: var(--native-text) !important;
+    font-size: 16px !important; /* iOS 防缩放最小字号 */
+    -webkit-appearance: none;
+    appearance: none;
+}
+input[type="text"]:not(.search-input):focus,
+input[type="password"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
+    border-color: var(--native-accent) !important;
+    outline: none;
+}
+
+/* 复选框/开关原生化 */
+.form-checkbox {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    background: var(--native-surface-2);
+    border-color: var(--native-line);
+}
+.form-checkbox:checked {
+    background: var(--native-accent);
+    border-color: var(--native-accent);
+}
+.form-checkbox:checked::after { left: 5px; top: 1px; }
+
+/* 按钮:胶囊化,统一层级 */
+.btn-neutral {
+    background: var(--native-surface-2);
+    border: 1px solid var(--native-line);
+    color: var(--native-text);
+    min-height: 44px;              /* 触控目标最小高度 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--native-radius-sm);
+}
+.btn-neutral:hover { background: #232830; }
+.btn-blue {
+    background: var(--native-accent);
+    background-image: none;
+    min-height: 44px;
+    border-radius: var(--native-radius-sm);
+}
+.btn-blue:hover { filter: brightness(1.1); }
+.btn-danger {
+    background: rgba(220, 80, 80, 0.12);
+    border-color: rgba(220, 80, 80, 0.3);
+    color: #ff9d9d;
+    min-height: 44px;
+    border-radius: var(--native-radius-sm);
+}
+
+/* 模态框细节:原生表面 */
+#modal > div {
+    background: var(--native-surface);
+    border: 1px solid var(--native-line);
+    border-radius: var(--native-radius);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+#modal .modal-detail-info {
+    background: var(--native-surface-2);
+    border-color: var(--native-line);
+}
+
+/* Toast:顶部胶囊(原生通知风格) */
+#toast {
+    border-radius: 999px;
+    background: rgba(24, 28, 34, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--native-line);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    font-size: 14px;
+    padding: 10px 20px;
+}
+
+/* 历史记录面板:原生化 */
+.history-item {
+    background: var(--native-surface);
+    border-color: var(--native-line);
+    border-radius: var(--native-radius-sm);
+}
+
+/* 尊重无障碍偏好:减少动画 */
+@media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
