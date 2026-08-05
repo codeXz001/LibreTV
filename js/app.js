@@ -47,8 +47,10 @@ function setCachedDetail(key, data) {
 document.addEventListener('DOMContentLoaded', function () {
     // 首次加载先建立默认配置，再渲染复选框，避免默认源状态不同步。
     if (!localStorage.getItem('hasInitializedDefaults')) {
-        // 默认选中资源（只选真实可用且支持搜索的源）
-        selectedAPIs = ["ffzy", "jszy", "lzzy", "wujin"];
+        // 默认选中资源（实测 2026-08-05 通过 zztv-5ms.pages.dev 代理可正常播放的源）
+        // 已剔除 ffzy/bfzy/lzzy/uku/piaoling/wujin/dyttzy/bdzy/zuidapi 等被源站对 CF Workers 出口 IP 风控 403 的源
+        // 16 个可用源全部默认勾上,首次安装即可看到大量结果;后续可在设置里调整
+        selectedAPIs = ["jszy", "hongniu", "360zy", "ruyi", "maoyan", "lovedan", "jinying", "iqiyi", "modu", "mdzy", "huya", "guangsu", "subocaiji", "xinlang", "zy360bak", "hhzy"];
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
 
         // 敏感内容过滤默认开启（管理员可关闭，普通模式强制开启）

@@ -1,140 +1,47 @@
-body, html {
+/* =========================================================
+   LibreTV 播放页 —— 移动 App 风格影院深色主题
+   Token:
+     --bg:        #0a0e14  影院深黑蓝(比首页更深一层)
+     --panel:     #131a26  面板
+     --accent:    #00ccff  主色(青,与首页一致)
+     --amber:     #f5b14c  琥珀(集数/热强调)
+     --text:      #e6edf3  主文字
+     --text-dim:  #8b98a9  次级文字
+   ========================================================= */
+
+:root {
+    --pv-bg: #0a0e14;
+    --pv-panel: #131a26;
+    --pv-panel-2: #182030;
+    --pv-accent: #00ccff;
+    --pv-amber: #f5b14c;
+    --pv-text: #e6edf3;
+    --pv-dim: #8b98a9;
+    --pv-line: rgba(255, 255, 255, 0.07);
+}
+
+html, body {
     margin: 0;
     padding: 0;
-    width: 100%;
-    height: 100%;
-    background-color: #0f1622;
-    color: white;
-    padding-top: 37px;
+    background: var(--pv-bg);
+    color: var(--pv-text);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
 }
 
-/* Critical header and navigation styles */
-.player-header {
+.player-page {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* =========================================================
+   播放器舞台：播放器 + 悬浮返回按钮
+   ========================================================= */
+.player-stage {
     position: relative;
-    z-index: 2147483647 !important;
-    pointer-events: auto !important;
-}
-
-.player-header-fixed {
-    position: fixed !important;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    z-index: 9000 !important;
-    pointer-events: auto !important;
-    background: #111;
-}
-
-#homeButton { 
-    pointer-events: auto !important; 
-}
-
-.home-button {
-    background: none !important;
-    border: none !important;
-    padding: 0 !important;
-}
-
-/* Critical loading styles to prevent FOUC */
-.player-placeholder {
-    width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 16/9 !important;
-    background-color: #1f2937 !important;
-    position: relative !important;
-    display: block !important;
-    border-radius: 8px !important;
-    overflow: hidden !important;
-}
-
-.player-loading-container {
-    width: 100% !important;
-    height: 0 !important;
-    padding-bottom: 56.25% !important;
-    position: relative !important;
-    background-color: #1f2937 !important;
-    border-radius: 8px !important;
-    overflow: hidden !important;
-    display: block !important;
-}
-
-.player-loading-overlay {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background-color: rgba(17, 24, 39, 0.7) !important;
-}
-
-.player-loading-spinner {
-    width: 48px !important;
-    height: 48px !important;
-    border: 4px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 50% !important;
-    border-top-color: #f97316 !important;
-    position: relative !important;
-    margin-bottom: 16px !important;
-    animation: spin 1s linear infinite !important;
-}
-
-/* Critical styles for loading text */
-.player-loading-text,
-.player-loading-overlay div:nth-child(2),
-div.player-loading-text {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    color: #f9fafb !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
-    margin-bottom: 8px !important;
-    text-align: center !important;
-    font-family: system-ui, -apple-system, sans-serif !important;
-    line-height: 1.4 !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
-    pointer-events: none !important;
-    z-index: 100 !important;
-    background: transparent !important;
-    max-width: 90% !important;
-}
-
-@keyframes player-spinner-rotate {
-    to { transform: rotate(360deg); }
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* ArtPlayer specific styles */
-.art-video-player, .art-video-player video {
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 150px !important;
-    max-height: 100vh !important;
-    background: #000 !important;
-    object-fit: contain !important;
-    display: block !important;
-}
-
-/* Fix for Chrome-specific issues */
-@media screen and (-webkit-min-device-pixel-ratio: 0) {
-    .art-video-player video {
-        transform: translateZ(0) !important;
-        will-change: transform !important;
-    }
-
-    /* Force visibility of video element */
-    .art-video-player.art-playing video {
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
+    background: #000;
 }
 
 .player-container {
@@ -143,124 +50,215 @@ div.player-loading-text {
     margin: 0 auto;
 }
 
+.player-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    overflow: hidden;
+}
+
 #player {
     width: 100%;
-    height: 60vh; /* 视频播放器高度 */
+    height: 100%;
+    aspect-ratio: auto !important; /* 覆盖 ArtPlayer 内联 */
 }
 
-.loading-container {
+.player-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    position: relative;
+    display: block;
+    overflow: hidden;
+}
+
+.player-loading-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
-    z-index: 100;
-    flex-direction: column;
+    background: radial-gradient(120% 120% at 50% 40%, #141c2b 0%, #0a0e14 70%);
 }
 
-.loading-spinner {
-    width: 50px;
-    height: 50px;
-    border: 4px solid rgba(255, 255, 255, 0.3);
+.player-loading-spinner {
+    width: 46px;
+    height: 46px;
+    border: 3px solid rgba(0, 204, 255, 0.15);
     border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-    margin-bottom: 10px;
+    border-top-color: var(--pv-accent);
+    margin-bottom: 18px;
+    animation: spin 1s linear infinite;
 }
 
-.error-container {
+.player-loading-text,
+.player-loading-overlay div:nth-child(2),
+div.player-loading-text {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: var(--pv-dim) !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    text-align: center !important;
+    font-family: system-ui, sans-serif !important;
+    letter-spacing: 0.05em;
+    pointer-events: none !important;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 返回按钮：悬浮毛玻璃圆钮 */
+.player-back-btn {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
-    z-index: 100;
-    flex-direction: column;
-    text-align: center;
-    padding: 1rem;
-}
-
-.error-icon {
-    font-size: 48px;
-    margin-bottom: 10px;
-}
-
-.error-message-sub {
-    margin-top: 10px;
-    font-size: 14px;
-    color: #aaa;
-}
-
-.episode-active {
-    background-color: #3b82f6 !important;
-    border-color: #60a5fa !important;
-}
-
-.episode-grid {
-    max-height: 30vh;
-    overflow-y: auto;
-}
-
-/* 恢复播放位置提示样式 */
-.position-restore-hint {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(100%);
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 4px;
-    z-index: 1000;
-    transition: transform 0.3s ease;
-    font-size: 14px;
-}
-
-.position-restore-hint.show {
-    transform: translateX(-50%) translateY(0);
-}
-
-.hint-content {
+    top: max(10px, env(safe-area-inset-top));
+    left: 12px;
+    z-index: 50;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 50%;
+    background: rgba(10, 14, 20, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    transition: transform 0.15s ease, background 0.2s;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.player-back-btn:active { transform: scale(0.92); background: rgba(10, 14, 20, 0.8); }
+
+/* =========================================================
+   主内容区
+   ========================================================= */
+.player-main {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 14px 16px calc(28px + env(safe-area-inset-bottom));
+    flex: 1;
+    box-sizing: border-box;
 }
 
+/* 信息浮条：片名 + 徽标 */
+.player-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.player-title {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--pv-text);
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    word-break: break-all;
+}
+
+.player-meta-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.meta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 999px;
+    line-height: 1.4;
+}
+
+.meta-badge-amber {
+    background: rgba(245, 177, 76, 0.12);
+    color: var(--pv-amber);
+    border: 1px solid rgba(245, 177, 76, 0.28);
+}
+
+.meta-badge-cyan {
+    background: rgba(0, 204, 255, 0.10);
+    color: var(--pv-accent);
+    border: 1px solid rgba(0, 204, 255, 0.26);
+    max-width: 60vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 操作条 */
+.player-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0;
+    margin-bottom: 4px;
+    border-top: 1px solid var(--pv-line);
+    border-bottom: 1px solid var(--pv-line);
+}
+
+.action-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: auto;
+    padding-right: 8px;
+}
+
+.action-label {
+    font-size: 13px;
+    color: var(--pv-dim);
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--pv-panel);
+    border: 1px solid var(--pv-line);
+    color: var(--pv-dim);
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    white-space: nowrap;
+}
+.action-btn:active { background: var(--pv-panel-2); }
+.action-btn:hover { color: var(--pv-text); border-color: rgba(0, 204, 255, 0.35); }
+
+/* 开关 */
 .switch {
     position: relative;
     display: inline-block;
-    width: 46px;
+    width: 44px;
     height: 24px;
+    flex-shrink: 0;
 }
-
-.switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
+.switch input { opacity: 0; width: 0; height: 0; }
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #333;
-    transition: .4s;
+    inset: 0;
+    background-color: #2a3446;
+    transition: 0.3s;
     border-radius: 24px;
 }
-
 .slider:before {
     position: absolute;
     content: "";
@@ -268,43 +266,213 @@ div.player-loading-text {
     width: 18px;
     left: 3px;
     bottom: 3px;
-    background-color: white;
-    transition: .4s;
+    background-color: #cbd5e1;
+    transition: 0.3s;
     border-radius: 50%;
 }
+input:checked + .slider { background-color: var(--pv-accent); }
+input:checked + .slider:before { transform: translateX(20px); background-color: #fff; }
 
-input:checked + .slider {
-    background-color: #00ccff;
+/* 源信息条 */
+.player-source-bar {
+    margin-top: 12px;
+    background: var(--pv-panel);
+    border: 1px solid var(--pv-line);
+    border-radius: 12px;
+    padding: 4px 0;
 }
 
-input:checked + .slider:before {
-    transform: translateX(22px);
+#resourceInfoBarContainer {
+    align-items: center;
 }
 
-/* 添加快捷键提示样式 */
-.shortcut-hint {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    font-size: 1.5rem;
+.resource-info-bar-left {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pv-text);
+    flex: 1;
+    padding: 8px 14px;
+    min-width: 0;
 }
 
-.shortcut-hint.show {
-    opacity: 1;
+.resource-info-bar-videos {
+    font-size: 12px;
+    font-weight: 400;
+    margin-left: 8px;
+    color: var(--pv-dim);
 }
 
-/* 原生全屏时，播放器容器铺满 */
+.resource-switch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--pv-accent);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 8px 14px;
+    border-radius: 10px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+.resource-switch-btn:hover { background: rgba(0, 204, 255, 0.08); }
+.resource-switch-btn:active { background: rgba(0, 204, 255, 0.14); }
+
+.resource-switch-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--pv-accent);
+    transition: transform 0.3s;
+}
+
+/* 选集区 */
+.player-episodes {
+    margin-top: 18px;
+}
+
+.episodes-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.episodes-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--pv-text);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.episodes-title::before {
+    content: "";
+    width: 4px;
+    height: 14px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--pv-accent), rgba(0, 204, 255, 0.35));
+}
+
+.episodes-count {
+    font-size: 12px;
+    color: var(--pv-dim);
+}
+
+.episode-grid {
+    max-height: 44vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.episode-grid::-webkit-scrollbar { display: none; }
+
+.episodes-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+@media (min-width: 480px) {
+    .episodes-list { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (min-width: 640px) {
+    .episodes-list { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+@media (min-width: 900px) {
+    .episodes-list { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}
+
+.episode-btn {
+    width: 100%;
+    padding: 10px 0;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--pv-panel);
+    border: 1px solid var(--pv-line);
+    color: var(--pv-dim);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-variant-numeric: tabular-nums;
+}
+.episode-btn:active { transform: scale(0.95); }
+
+.episode-active {
+    background: linear-gradient(135deg, rgba(0, 204, 255, 0.18), rgba(0, 204, 255, 0.06)) !important;
+    border-color: rgba(0, 204, 255, 0.55) !important;
+    color: var(--pv-accent) !important;
+    font-weight: 600 !important;
+    box-shadow: 0 0 14px rgba(0, 204, 255, 0.18);
+}
+
+/* =========================================================
+   加载/错误覆盖层
+   ========================================================= */
+.loading-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    z-index: 100;
+    flex-direction: column;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(0, 204, 255, 0.15);
+    border-radius: 50%;
+    border-top-color: var(--pv-accent);
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 12px;
+}
+
+.error-container {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    z-index: 100;
+    flex-direction: column;
+    text-align: center;
+    padding: 1rem;
+}
+
+.error-icon { font-size: 44px; margin-bottom: 10px; }
+.error-message-sub { margin-top: 10px; font-size: 13px; color: var(--pv-dim); }
+
+/* ArtPlayer 兼容 */
+.art-video-player, .art-video-player video {
+    width: 100% !important;
+    height: 100% !important;
+    background: #000 !important;
+    object-fit: contain !important;
+    display: block !important;
+}
+
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+    .art-video-player video {
+        transform: translateZ(0) !important;
+        will-change: transform !important;
+    }
+    .art-video-player.art-playing video {
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+}
+
+/* 原生全屏时铺满 */
 .player-container:-webkit-full-screen,
 .player-container:fullscreen {
     position: fixed;
@@ -313,91 +481,69 @@ input:checked + .slider:before {
     z-index: 10000;
     background-color: #000;
 }
-
-.player-container:-webkit-full-screen #player,
-.player-container:fullscreen #player {
-    width: 100%; height: 100%;
+.player-container:-webkit-full-screen .player-frame,
+.player-container:fullscreen .player-frame {
+    width: 100%; height: 100%; aspect-ratio: auto;
 }
 
-/* 资源信息卡片区 */
-#resourceInfoBarContainer {
-    align-items: center;
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.resource-info-bar-left {
-    align-items: center;
-    font-size: 1.1rem;
-    font-weight: bold;
+/* =========================================================
+   快捷键提示 / 播放位置恢复提示
+   ========================================================= */
+.shortcut-hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 14, 20, 0.88);
+    backdrop-filter: blur(8px);
     color: #fff;
-    flex: 1;
-}
-
-.resource-info-bar-videos {
-    font-size: 1rem;
-    font-weight: normal;
-    margin-left: 10px;
-    color: #ccc;
-}
-
-.resource-switch-btn {
+    padding: 14px 24px;
+    border-radius: 14px;
+    font-size: 15px;
+    display: flex;
     align-items: center;
-    background: none;
-    border: none;
-    color: #a67c2d;
-    font-weight: bold;
-    font-size: 1rem;
-    cursor: pointer;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 0.5rem;
-    transition: background 0.2s;
+    gap: 8px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    border: 1px solid var(--pv-line);
 }
+.shortcut-hint.show { opacity: 1; }
+.shortcut-icon { width: 20px; height: 20px; color: var(--pv-accent); }
 
-.resource-switch-btn:hover {
-    background: #f5e9d7;
+.position-restore-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120%);
+    background: rgba(10, 14, 20, 0.92);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 999px;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    font-size: 13px;
+    border: 1px solid var(--pv-line);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
 }
+.position-restore-hint.show { transform: translateX(-50%) translateY(0); }
+.hint-content { display: flex; align-items: center; justify-content: center; gap: 8px; }
 
-.resource-switch-btn:active {
-    background: #f5e9d7;
-}
-
-.resource-switch-icon {
-    width: 20px;
-    height: 20px;
-    margin-right: 0;
-    color: #a67c2d;
-    vertical-align: middle;
-    transition: transform 0.3s;
-}
-
-/* 新增：移动端响应式样式 */
-@media (max-width: 640px) {
-    .episode-grid {
-        max-height: 40vh; /* 移动端增加集数列表高度 */
+/* =========================================================
+   横屏：播放器沉浸全屏,隐藏页面其余部分
+   ========================================================= */
+@media (orientation: landscape) and (max-height: 480px) {
+    .player-stage {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: #000;
     }
-
-    /* 改进移动端按钮显示 */
-    button {
-        white-space: nowrap;
-    }
-
-    /* 控制栏在小屏幕上可能需要换行 */
-    .player-container .flex-wrap {
-        margin-bottom: 4px;
-    }
-
-    /* 移动端返回按钮仅保留图标，隐藏文字，节省头部空间 */
-    .home-btn-text { display: none; }
-
-    /* 防止横向溢出 */
-    .player-header-fixed { overflow-x: hidden; }
-    .player-container { overflow-x: hidden; }
-    body { overflow-x: hidden; }
+    .player-container { max-width: none; height: 100%; }
+    .player-frame { height: 100%; aspect-ratio: auto; }
+    .player-main { display: none; }
 }
 
 /* 隐藏用户名输入框 */
-#username {
-    display: none !important;
-}
+#username { display: none !important; }

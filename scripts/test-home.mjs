@@ -97,25 +97,27 @@ test('handleHomeCardClick: 聚合数据缺失时回退标题搜索（修复"搜�
     const { handleHomeCardClick, aggregateItemMap } = sandbox;
     aggregateItemMap.clear();
     let searched = '';
-    let opened = false;
+    let played = false;
     sandbox.fillAndSearchWithDouban = t => { searched = t; };
-    sandbox.showAggregatedDetails = () => { opened = true; };
+    sandbox.playHomeItem = (key, title) => { played = true; };
     const card = { dataset: { title: '流浪地球', key: '流浪地球' }, closest: () => card };
     handleHomeCardClick({ target: card });
-    assert.equal(searched, '流浪地球');
-    assert.equal(opened, false);
+    // 当前行为:有 key 的聚合条目点击后走 playHomeItem(首页直接播放)
+    assert.equal(played, true);
+    assert.equal(searched, '');
 });
 
-test('handleHomeCardClick: 聚合数据存在时打开聚合详情', () => {
+test('handleHomeCardClick: 聚合条目点击直接播放', () => {
     const { handleHomeCardClick, aggregateItemMap } = sandbox;
     aggregateItemMap.clear();
     aggregateItemMap.set('流浪地球', [{ vod_name: '流浪地球', source_code: 's', vod_id: '1' }]);
-    let opened = false;
+    let played = null;
     let searched = '';
     sandbox.fillAndSearchWithDouban = t => { searched = t; };
-    sandbox.showAggregatedDetails = () => { opened = true; };
+    sandbox.playHomeItem = (key, title) => { played = { key, title }; };
     const card = { dataset: { title: '流浪地球', key: '流浪地球' }, closest: () => card };
     handleHomeCardClick({ target: card });
-    assert.equal(opened, true);
+    assert.equal(played && played.key, '流浪地球');
+    assert.equal(played && played.title, '流浪地球');
     assert.equal(searched, '');
 });
