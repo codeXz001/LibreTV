@@ -543,6 +543,11 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
     .player-container { max-width: none; height: 100%; }
     .player-frame { height: 100%; aspect-ratio: auto; }
     .player-main { display: none; }
+    /* 横屏下顶部留出状态栏安全区,避免返回按钮与系统指示器重叠 */
+    .player-back-btn {
+        top: max(10px, env(safe-area-inset-top));
+        left: max(12px, env(safe-area-inset-left));
+    }
 }
 
 /* 隐藏用户名输入框 */
