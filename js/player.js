@@ -79,8 +79,7 @@ function ensurePlayerLibs() {
         ]).then(() => {
             // 组件就绪后的全局配置(原为顶层语句,依赖 Artplayer 已加载)
             Artplayer.FULLSCREEN_WEB_IN_BODY = true;
-            // 自定义 M3U8 Loader: ① 响应内分片 URL 重写为代理(解决 CORS/混合内容)
-            //                       ② 可选广告分段过滤
+            // 自定义 M3U8 Loader: 仅广告分段过滤(直连模式不做分片 URL 重写)
             window.CustomHlsJsLoader = class extends Hls.DefaultConfig.loader {
                 constructor(config) {
                     super(config);
@@ -90,16 +89,11 @@ function ensurePlayerLibs() {
                         if (context.type === 'manifest' || context.type === 'level') {
                             const onSuccess = callbacks.onSuccess;
                             callbacks.onSuccess = function (response, stats, context) {
+                                // 直连模式:分片 URL 保持源站原样,仅做广告分段过滤
                                 if (response.data && typeof response.data === 'string') {
-                                    let content = response.data;
-                                    // 1) 分片/密钥/映射 URL 重写为代理地址(始终开启)
-                                    const baseUrl = window.__currentPlayBaseUrl || context.url || '';
-                                    content = rewriteM3u8ToProxy(content, baseUrl);
-                                    // 2) 广告分段过滤(开关控制)
                                     if (adFilteringEnabled) {
-                                        content = filterAdsFromM3U8(content, true);
+                                        response.data = filterAdsFromM3U8(response.data, true);
                                     }
-                                    response.data = content;
                                 }
                                 return onSuccess(response, stats, context);
                             };
@@ -139,37 +133,9 @@ let progressSaveInterval = null; // 定期保存进度的计时器
 let currentVideoUrl = ''; // 记录当前实际的视频URL
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 
-// —— M3U8 播放链路统一走 /proxy/ ——
-// 源站 m3u8 直连存在两个问题：
-//   1) CORS: 源站未放行跨域时,manifest/分片请求被浏览器拦截 → 一直加载中;
-//   2) 混合内容: https 页面加载 http:// 的 m3u8 会被浏览器直接阻止。
-// 通过代理转发 + 响应内分片 URL 重写,彻底解决这两个问题。
-function toProxyUrl(targetUrl) {
-    if (!targetUrl || typeof targetUrl !== 'string') return '';
-    return PROXY_URL + encodeURIComponent(targetUrl);
-}
-function resolvePlayUrl(baseUrl, relativeUrl) {
-    if (!relativeUrl) return '';
-    if (/^https?:\/\//i.test(relativeUrl)) return relativeUrl;
-    try { return new URL(relativeUrl, baseUrl).toString(); } catch { return relativeUrl; }
-}
-// 把 m3u8 内容中的分片/密钥/映射 URL 重写为代理地址(与 proxy-core/m3u8.mjs 等价)
-// 注意:后端代理返回的内容里分片已重写为 /proxy/<encoded> 相对路径,
-// 这些行直接跳过——再次解析会基于源站域名产生双层嵌套代理 URL,导致分片 404。
-function rewriteM3u8ToProxy(content, baseUrl) {
-    if (!content || typeof content !== 'string') return content;
-    let out = content.replace(/^([^#][^\r\n]*)$/gm, (line) => {
-        const url = line.trim();
-        if (!url) return line;
-        if (url.startsWith('/proxy/')) return line; // 后端已重写,不再二次包装
-        return toProxyUrl(resolvePlayUrl(baseUrl, url));
-    });
-    out = out.replace(/URI="([^"]+)"/g, (match, uri) => {
-        if (uri.startsWith('/proxy/')) return match;
-        return `URI="${toProxyUrl(resolvePlayUrl(baseUrl, uri))}"`;
-    });
-    return out;
-}
+// —— 直连播放 ——
+// 源站 m3u8 直接加载,不走代理(2026-08-05 决策:多个源站对 Cloudflare Workers
+// 出口 IP 有风控,直连反而最稳;CORS/混合内容由浏览器与源站自身策略决定)。
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
@@ -573,9 +539,8 @@ async function initPlayer(videoUrl) {
                     }
                 }
 
-                // 源站 URL 保存为分片重写基准;manifest 加载走代理(解决 CORS/混合内容)
-                window.__currentPlayBaseUrl = url;
-                const playUrl = toProxyUrl(url);
+                // 直连模式:manifest/分片直接加载源站 URL,不走代理
+                // (规避源站对数据中心出口 IP 的风控,2026-08-05 决策)
 
                 // 创建新的HLS实例
                 const hls = new Hls(hlsConfig);
@@ -605,20 +570,20 @@ async function initPlayer(videoUrl) {
                     }
                 });
 
-                hls.loadSource(playUrl);
+                hls.loadSource(url);
                 hls.attachMedia(video);
 
                 // enable airplay, from https://github.com/video-dev/hls.js/issues/5989
                 // 检查是否已存在source元素，如果存在则更新，不存在则创建
-                // source 元素同样指向代理地址,原生播放(Safari)也走代理
+                // source 元素指向源站地址,原生播放(Safari)同样直连
                 let sourceElement = video.querySelector('source');
                 if (sourceElement) {
                     // 更新现有source元素的URL
-                    sourceElement.src = playUrl;
+                    sourceElement.src = url;
                 } else {
                     // 创建新的source元素
                     sourceElement = document.createElement('source');
-                    sourceElement.src = playUrl;
+                    sourceElement.src = url;
                     video.appendChild(sourceElement);
                 }
                 video.disableRemotePlayback = false;
