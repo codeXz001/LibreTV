@@ -476,9 +476,9 @@ function updateSelectedAPIs() {
     localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
     window.selectedAPIs = selectedAPIs;
 
-    // 默认源若已失效（不在 selectedAPIs 中），自动降级到第一个普通资源源
+    // 默认源若已失效（不在 selectedAPIs 中），自动降级到第一个普通资源源；
+    // 降级发生时 setDefaultSourceId 内部已触发首页重载，此处无需重复处理。
     ensureDefaultSourceValid();
-
     // 同步默认源下拉框状态
     renderDefaultSourceSelect();
 
@@ -535,23 +535,32 @@ function getEffectiveDefaultSourceId() {
 }
 
 // 保证默认源合法，否则降级到第一个可用默认源
+// 返回是否发生了降级变化（供调用方决定是否触发首页重载）
 function ensureDefaultSourceValid() {
     const effective = getEffectiveDefaultSourceId();
     if (effective && effective !== defaultSourceId) {
         setDefaultSourceId(effective);
-    } else if (!effective && defaultSourceId) {
-        setDefaultSourceId(null);
+        return true;
     }
-    return effective;
+    if (!effective && defaultSourceId) {
+        setDefaultSourceId(null);
+        return true;
+    }
+    return false;
 }
 
-// 设置默认源并持久化、刷新 UI 与首页缓存
+// 设置默认源并持久化、刷新 UI 与首页缓存；
+// 默认源真正变化时触发首页重载（在首页则立即刷新，否则标记待重载）。
 function setDefaultSourceId(value) {
+    const changed = value !== defaultSourceId;
     defaultSourceId = value;
     localStorage.setItem('defaultSourceId', JSON.stringify(value));
     window.defaultSourceId = value;
-    if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
     renderDefaultSourceSelect();
+    if (changed) {
+        if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
+        if (typeof markHomeReload === 'function') markHomeReload();
+    }
 }
 
 // 切换搜索模式
@@ -564,6 +573,7 @@ function setSearchMode(mode) {
     renderSearchModeUI();
     // 模式变化可能影响首页（单源模式时首页逻辑也要随之调整）
     if (typeof invalidateHomeCache === 'function') invalidateHomeCache();
+    if (typeof markHomeReload === 'function') markHomeReload();
 }
 
 // 搜索时要查询的源列表（单源模式只查默认源，多源模式遍历选中源）

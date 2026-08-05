@@ -40,6 +40,8 @@ const LATEST_BATCH = 24;       // 网格每批展示条数
 let homeCurrentCatId = 'movie';
 let homeReqSeq = 0;            // 切分类竞态序号:过期响应丢弃
 let homeLoadingMore = {};      // { [catId]: boolean } 分页防重入
+let homeReloadPending = false; // 源配置变更后待重载标记:切回首页视图时消费,强制重新拉取
+let homeInitDone = false;      // 初始化加载完成标记:避免初始化阶段的自动重载与首屏竞态
 let __sentinelObserver = null; // 滚动哨兵观察器(全局一个)
 
 const HOME_CACHE_PREFIX = 'homePoolCache_v1:';
@@ -486,6 +488,14 @@ async function loadCategory(catId) {
     const feed = document.getElementById('homeFeed');
     if (!feed) return;
 
+    // 源配置已变更(切换默认源/勾选源导致默认源降级等):
+    // 丢弃旧的持久缓存与内存池,强制按新配置重新拉取;
+    // 若密码未验证被中断,标记保持,待验证后再次加载时消费。
+    if (homeReloadPending) {
+        homeReloadPending = false;
+        invalidateHomeCache();
+    }
+
     feed.innerHTML = buildCatSectionHtml(catId);
     const hotContainer = document.getElementById('hotstrip-' + catId);
     const latestContainer = document.getElementById('latest-' + catId);
@@ -710,6 +720,17 @@ function invalidateHomeCache() {
     homeReqSeq++; // 使在途请求结果作废
 }
 
+// 标记首页待重载:源配置变更后,下次进入首页视图时强制重新拉取。
+// 若当前正停留在首页且初始化已完成,直接重载,让用户立即看到新配置的效果。
+function markHomeReload() {
+    const isHomeActive = document.body && document.body.dataset.view === 'view-home';
+    if (isHomeActive && homeInitDone) {
+        loadCategory(homeCurrentCatId);
+    } else {
+        homeReloadPending = true;
+    }
+}
+
 // ---- 三视图底部导航 ----
 function switchView(viewId) {
     document.querySelectorAll('.app-view').forEach(v => {
@@ -726,10 +747,14 @@ function switchView(viewId) {
         toggleHistory();
     }
 
-    // 回到影视页且首页为空(如首屏加载被中断)时补一次加载
+    // 回到影视页:源配置已变更时强制重载;首页为空(如首屏加载被中断)时补一次加载
     if (viewId === 'view-home') {
         const feed = document.getElementById('homeFeed');
-        if (feed && !feed.children.length) loadCategory(homeCurrentCatId);
+        if (homeReloadPending) {
+            loadCategory(homeCurrentCatId);
+        } else if (feed && !feed.children.length) {
+            loadCategory(homeCurrentCatId);
+        }
     }
     window.scrollTo({ top: 0 });
 }
@@ -845,6 +870,7 @@ function initHomePage() {
     }
 
     // 初始加载推荐内容（默认源的最新 + 最热）
+    homeInitDone = true; // 初始化完成:此后源配置变更可触发首页自动重载
     loadCategory(homeCurrentCatId);
     // 空闲预取其余分类数据池,切换秒开
     prewarmHomeCategories();
