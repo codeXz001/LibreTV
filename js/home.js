@@ -43,7 +43,9 @@ let homeLoadingMore = {};      // { [catId]: boolean } 分页防重入
 let __sentinelObserver = null; // 滚动哨兵观察器(全局一个)
 
 const HOME_CACHE_PREFIX = 'homePoolCache_v1:';
-const HOME_CACHE_TTL = 5 * 60 * 1000; // 与内存池 TTL 一致
+// 持久缓存 TTL 30 分钟(配合 SWR:命中即秒开,后台静默刷新保持新鲜);
+// 内存池 TTL(POOL_TTL)仍为 5 分钟,仅控制会话内新鲜度。
+const HOME_CACHE_TTL = 30 * 60 * 1000;
 
 // 按分类返回应使用的数据源：
 // 资源采集站分类只取标记为 adult 的源；
@@ -199,7 +201,9 @@ async function fetchSourceCategoryPage(srcId, catId, page) {
 
         const response = await fetch(proxiedUrl, {
             headers: API_CONFIG.search.headers,
-            signal: controller.signal
+            signal: controller.signal,
+            // 首页数据请求优先于图片等低优资源，首屏更快
+            priority: 'high'
         });
         clearTimeout(timeoutId);
 
@@ -516,9 +520,11 @@ async function loadCategory(catId) {
 async function loadPoolCategory(seq, catId, hotSection, hotContainer, latestContainer, sentinel) {
     const srcIds = getHomeSourceIds(catId);
     let pool = getPool(catId);
+    // 命中持久缓存:先渲染秒开,后台静默刷新数据(SWR 模式)
+    let restored = false;
     if (!pool) {
-        // 刷新页面后优先使用 5 分钟内的轻量持久缓存，避免首屏等待资源站网络。
         pool = restoreHomePool(catId, srcIds);
+        restored = !!pool;
     }
     if (!pool) {
         pool = initPool(catId);
@@ -527,6 +533,28 @@ async function loadPoolCategory(seq, catId, hotSection, hotContainer, latestCont
     if (seq !== homeReqSeq) return;
 
     renderPool(catId, hotSection, hotContainer, latestContainer, sentinel);
+
+    // 缓存恢复后后台静默刷新:不阻塞首屏,数据保持新鲜;
+    // 刷新完成后若用户仍停留该分类,更新渲染与持久缓存。
+    if (restored) {
+        refillPool(catId)
+            .then(() => {
+                if (seq !== homeReqSeq) return; // 已切走分类,丢弃
+                const cur = homePools[catId];
+                if (cur && cur.merged && cur.merged.length) {
+                    const feed = document.getElementById('homeFeed');
+                    // 只更新仍在展示的分类内容
+                    const hotC = document.getElementById('hotstrip-' + catId);
+                    const latestC = document.getElementById('latest-' + catId);
+                    const sent = document.getElementById('sentinel-' + catId);
+                    const hotSec = hotC ? hotC.closest('.hot-section') : null;
+                    if (hotC && latestC) {
+                        renderPool(catId, hotSec, hotC, latestC, sent);
+                    }
+                }
+            })
+            .catch(() => { /* 刷新失败保留缓存内容 */ });
+    }
 }
 
 // 各源并行拉下一批页(每源 PER_SOURCE_PAGES 页)追加进池
@@ -644,6 +672,35 @@ async function loadMoreLatest(catId) {
 function finishPool(catId, sentinel, pool) {
     if (sentinel) sentinel.outerHTML = '<div class="loadmore-end">已加载全部</div>';
     if (pool) pool.hasMore = false;
+}
+
+// 空闲预热其余分类的数据池:用户停留在当前分类时,后台预取其他分类,
+// 切换时 getPool 直接命中,秒开(不抢占首屏渲染)。
+function prewarmHomeCategories() {
+    const cats = (Array.isArray(HOME_CATEGORIES) ? HOME_CATEGORIES : []).map(c => c.id);
+    const rest = cats.filter(id => id !== homeCurrentCatId);
+    if (!rest.length) return;
+    // 普通模式不预热资源采集站分类
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    const targets = rest.filter(id => isAdmin || id !== 'adult');
+    if (!targets.length) return;
+
+    const schedule = (fn) => {
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(fn, { timeout: 4000 });
+        } else {
+            setTimeout(fn, 2000); // 无 idle API 时延迟执行,避开首屏
+        }
+    };
+    schedule(async () => {
+        for (const catId of targets) {
+            // 已加载或持久缓存可恢复的分类直接跳过
+            const srcIds = getHomeSourceIds(catId);
+            if (getPool(catId) || restoreHomePool(catId, srcIds)) continue;
+            const pool = initPool(catId);
+            await refillPool(catId); // 失败由内部 try/catch 兜底,不影响后续
+        }
+    });
 }
 
 // 源配置变更时清空首页缓存(下次进入强制重新拉取)
@@ -789,14 +846,21 @@ function initHomePage() {
 
     // 初始加载推荐内容（默认源的最新 + 最热）
     loadCategory(homeCurrentCatId);
+    // 空闲预取其余分类数据池,切换秒开
+    prewarmHomeCategories();
 }
 
-// 密码验证通过后（如切换到管理员模式）重新加载首页
+// 密码验证通过后重新加载首页：
+// 初始 DOMContentLoaded 时 loadCategory 会因密码未验证被中断(只渲染了骨架屏)，
+// 验证成功必须重载；管理员模式下若当前是普通分类,切到资源采集站分类。
 document.addEventListener('passwordVerified', function () {
-    if (homeCurrentCatId === 'adult') {
-        const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
-        if (!isAdmin) loadCategory('movie');
+    const isAdmin = typeof window.isAdminMode === 'function' && window.isAdminMode();
+    if (homeCurrentCatId === 'adult' && !isAdmin) {
+        loadCategory('movie');
+        return;
     }
+    loadCategory(homeCurrentCatId);
+    prewarmHomeCategories();
 });
 
 document.addEventListener('DOMContentLoaded', initHomePage);

@@ -79,20 +79,27 @@ function ensurePlayerLibs() {
         ]).then(() => {
             // 组件就绪后的全局配置(原为顶层语句,依赖 Artplayer 已加载)
             Artplayer.FULLSCREEN_WEB_IN_BODY = true;
-            // 自定义 M3U8 Loader 用于过滤广告(原为顶层类定义,依赖 Hls 已加载)
+            // 自定义 M3U8 Loader: ① 响应内分片 URL 重写为代理(解决 CORS/混合内容)
+            //                       ② 可选广告分段过滤
             window.CustomHlsJsLoader = class extends Hls.DefaultConfig.loader {
                 constructor(config) {
                     super(config);
                     const load = this.load.bind(this);
                     this.load = function (context, config, callbacks) {
-                        // 拦截manifest和level请求
+                        // 拦截 manifest 和 level 请求
                         if (context.type === 'manifest' || context.type === 'level') {
                             const onSuccess = callbacks.onSuccess;
                             callbacks.onSuccess = function (response, stats, context) {
-                                // 如果是m3u8文件，处理内容以移除广告分段
                                 if (response.data && typeof response.data === 'string') {
-                                    // 过滤掉广告段 - 实现更精确的广告过滤逻辑
-                                    response.data = filterAdsFromM3U8(response.data, true);
+                                    let content = response.data;
+                                    // 1) 分片/密钥/映射 URL 重写为代理地址(始终开启)
+                                    const baseUrl = window.__currentPlayBaseUrl || context.url || '';
+                                    content = rewriteM3u8ToProxy(content, baseUrl);
+                                    // 2) 广告分段过滤(开关控制)
+                                    if (adFilteringEnabled) {
+                                        content = filterAdsFromM3U8(content, true);
+                                    }
+                                    response.data = content;
                                 }
                                 return onSuccess(response, stats, context);
                             };
@@ -132,6 +139,38 @@ let progressSaveInterval = null; // 定期保存进度的计时器
 let currentVideoUrl = ''; // 记录当前实际的视频URL
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 
+// —— M3U8 播放链路统一走 /proxy/ ——
+// 源站 m3u8 直连存在两个问题：
+//   1) CORS: 源站未放行跨域时,manifest/分片请求被浏览器拦截 → 一直加载中;
+//   2) 混合内容: https 页面加载 http:// 的 m3u8 会被浏览器直接阻止。
+// 通过代理转发 + 响应内分片 URL 重写,彻底解决这两个问题。
+function toProxyUrl(targetUrl) {
+    if (!targetUrl || typeof targetUrl !== 'string') return '';
+    return PROXY_URL + encodeURIComponent(targetUrl);
+}
+function resolvePlayUrl(baseUrl, relativeUrl) {
+    if (!relativeUrl) return '';
+    if (/^https?:\/\//i.test(relativeUrl)) return relativeUrl;
+    try { return new URL(relativeUrl, baseUrl).toString(); } catch { return relativeUrl; }
+}
+// 把 m3u8 内容中的分片/密钥/映射 URL 重写为代理地址(与 proxy-core/m3u8.mjs 等价)
+// 注意:后端代理返回的内容里分片已重写为 /proxy/<encoded> 相对路径,
+// 这些行直接跳过——再次解析会基于源站域名产生双层嵌套代理 URL,导致分片 404。
+function rewriteM3u8ToProxy(content, baseUrl) {
+    if (!content || typeof content !== 'string') return content;
+    let out = content.replace(/^([^#][^\r\n]*)$/gm, (line) => {
+        const url = line.trim();
+        if (!url) return line;
+        if (url.startsWith('/proxy/')) return line; // 后端已重写,不再二次包装
+        return toProxyUrl(resolvePlayUrl(baseUrl, url));
+    });
+    out = out.replace(/URI="([^"]+)"/g, (match, uri) => {
+        if (uri.startsWith('/proxy/')) return match;
+        return `URI="${toProxyUrl(resolvePlayUrl(baseUrl, uri))}"`;
+    });
+    return out;
+}
+
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
     // 尽早对播放地址域名做预连接（解析 URL 参数，不等 initPlayer），
@@ -147,6 +186,10 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('player-loading').style.display = 'none';
         return;
     }
+
+    // 立即并行预热播放器库（preload 之外的双保险）：
+    // 不等 initializePageContent 的 URL 解析/历史恢复逻辑，首帧更早。
+    ensurePlayerLibs().catch(() => {});
 
     initializePageContent();
 });
@@ -257,6 +300,8 @@ function initializePageContent() {
 
     // 设置页面标题
     document.title = currentVideoTitle + ' - LibreTV播放器';
+    const titleEl = document.getElementById('videoTitle');
+    if (titleEl) titleEl.textContent = currentVideoTitle;
 
     // 初始化播放器
     if (videoUrl) {
@@ -450,7 +495,9 @@ async function initPlayer(videoUrl) {
     // 配置HLS.js选项
     const hlsConfig = {
         debug: false,
-        loader: adFilteringEnabled ? window.CustomHlsJsLoader : Hls.DefaultConfig.loader,
+        // 始终使用自定义 Loader: 分片代理重写必须启用(解决 CORS/混合内容),
+        // 广告过滤在 Loader 内部按开关控制
+        loader: window.CustomHlsJsLoader || Hls.DefaultConfig.loader,
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
@@ -486,7 +533,7 @@ async function initPlayer(videoUrl) {
         container: '#player',
         url: videoUrl,
         type: 'm3u8',
-        title: videoTitle,
+        title: currentVideoTitle,
         volume: 0.8,
         isLive: false,
         muted: false,
@@ -526,6 +573,10 @@ async function initPlayer(videoUrl) {
                     }
                 }
 
+                // 源站 URL 保存为分片重写基准;manifest 加载走代理(解决 CORS/混合内容)
+                window.__currentPlayBaseUrl = url;
+                const playUrl = toProxyUrl(url);
+
                 // 创建新的HLS实例
                 const hls = new Hls(hlsConfig);
                 currentHls = hls;
@@ -554,19 +605,20 @@ async function initPlayer(videoUrl) {
                     }
                 });
 
-                hls.loadSource(url);
+                hls.loadSource(playUrl);
                 hls.attachMedia(video);
 
                 // enable airplay, from https://github.com/video-dev/hls.js/issues/5989
                 // 检查是否已存在source元素，如果存在则更新，不存在则创建
+                // source 元素同样指向代理地址,原生播放(Safari)也走代理
                 let sourceElement = video.querySelector('source');
                 if (sourceElement) {
                     // 更新现有source元素的URL
-                    sourceElement.src = videoUrl;
+                    sourceElement.src = playUrl;
                 } else {
                     // 创建新的source元素
                     sourceElement = document.createElement('source');
-                    sourceElement.src = videoUrl;
+                    sourceElement.src = playUrl;
                     video.appendChild(sourceElement);
                 }
                 video.disableRemotePlayback = false;
@@ -669,14 +721,41 @@ async function initPlayer(videoUrl) {
         }
 
         if (!isWeb) {
-            if (window.screen.orientation && window.screen.orientation.lock) {
-                window.screen.orientation.lock('landscape')
-                    .then(() => {
-                    })
-                    .catch((error) => {
-                    });
+            // 原生全屏:进入时锁定横屏,退出时解锁(手机播放体验)
+            const ori = window.screen.orientation;
+            if (isFullScreen) {
+                if (ori && ori.lock) {
+                    ori.lock('landscape').catch(() => {});
+                }
+            } else {
+                if (ori && ori.unlock) {
+                    try { ori.unlock(); } catch (e) {}
+                }
+            }
+            // 全屏时隐藏系统状态栏(Capacitor StatusBar 插件可用时)
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar) {
+                const sb = window.Capacitor.Plugins.StatusBar;
+                if (isFullScreen) { sb.hide().catch(() => {}); }
+                else { sb.show().catch(() => {}); }
             }
         }
+    }
+
+    // 设备横屏自动进入全屏,竖屏自动退出(手机播放器横屏支持)
+    function handleOrientationChange() {
+        const ori = window.screen.orientation;
+        if (!ori || !ori.type) return;
+        const isLandscape = ori.type.startsWith('landscape');
+        if (art) {
+            if (isLandscape && !art.fullscreen) {
+                art.fullscreen = true;
+            } else if (!isLandscape && art.fullscreen) {
+                art.fullscreen = false;
+            }
+        }
+    }
+    if (window.screen && window.screen.orientation && window.screen.orientation.addEventListener) {
+        window.screen.orientation.addEventListener('change', handleOrientationChange);
     }
 
     // 播放器加载完成后初始隐藏工具栏
@@ -856,6 +935,14 @@ function renderEpisodes() {
     const episodesList = document.getElementById('episodesList');
     if (!episodesList) return;
 
+    // 更新集数徽标与计数
+    const episodeInfoEl = document.getElementById('episodeInfo');
+    if (episodeInfoEl && currentEpisodes.length) {
+        episodeInfoEl.textContent = `第 ${currentEpisodeIndex + 1} / ${currentEpisodes.length} 集`;
+    }
+    const countEl = document.getElementById('episodesCount');
+    if (countEl) countEl.textContent = `共 ${currentEpisodes.length} 集`;
+
     if (!currentEpisodes || currentEpisodes.length === 0) {
         episodesList.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">没有可用的集数</div>';
         return;
@@ -891,6 +978,48 @@ function renderEpisodes() {
     });
 
     episodesList.innerHTML = html;
+}
+
+// 切换集数倒序排列（HTML 按钮 onclick 引用）
+function toggleEpisodeOrder() {
+    episodesReversed = !episodesReversed;
+    localStorage.setItem('episodesReversed', JSON.stringify(episodesReversed));
+    renderEpisodes();
+    const orderText = document.getElementById('orderText');
+    if (orderText) orderText.textContent = episodesReversed ? '正序' : '倒序';
+}
+
+// 返回上一页（HTML 返回按钮 onclick 引用）
+function goBack(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (window.history && window.history.length > 1) {
+        window.history.back();
+    } else {
+        window.location.href = 'index.html';
+    }
+}
+
+// 分享：Capacitor 环境由 app-native.js 提供系统分享面板；
+// Web 部署环境无 app-native.js,这里兜底为复制链接。
+if (typeof window.shareVideo !== 'function') {
+    window.shareVideo = async function (url, title) {
+        const link = url || window.location.href;
+        const name = title || document.title || 'LibreTV';
+        if (navigator.share) {
+            try { await navigator.share({ title: name, url: link }); return; } catch (e) { /* 取消/失败 */ }
+        }
+        if (navigator.clipboard) {
+            try {
+                await navigator.clipboard.writeText(link);
+                if (typeof showToast === 'function') showToast('链接已复制', 'success');
+                return;
+            } catch (e) { /* 忽略 */ }
+        }
+        window.prompt('复制播放链接', link);
+    };
 }
 
 // 播放指定集数
@@ -1404,6 +1533,10 @@ function renderResourceInfoBar() {
             resourceName = customAPIs[customIndex].name || '自定义资源';
         }
     }
+
+    // 同步页头源名称徽标
+    const resourceNameEl = document.getElementById('resourceName');
+    if (resourceNameEl) resourceNameEl.textContent = resourceName;
 
     // 当前源信息行 + 可切换源列表（点击直接切换，无需弹窗）
     container.innerHTML = `

@@ -96,7 +96,7 @@ test('首页池缓存: 源选择变化或过期后不恢复旧数据', () => {
 
     const key = 'homePoolCache_v1:tv:ffzy';
     const expired = JSON.parse(storage.getItem(key));
-    expired.ts = Date.now() - 6 * 60 * 1000;
+    expired.ts = Date.now() - 31 * 60 * 1000; // 超过 30 分钟 TTL
     storage.setItem(key, JSON.stringify(expired));
     assert.equal(sb.restoreHomePool('tv', ['ffzy']), null, '过期缓存应失效');
     assert.equal(storage.getItem(key), null, '过期缓存应清理');
