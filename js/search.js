@@ -32,7 +32,7 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-async function searchByAPIAndKeyWord(apiId, query) {
+async function searchByAPIAndKeyWord(apiId, query, outerSignal) {
     // 结果缓存：相同 (源 + 关键词) 在 TTL 内直接返回，避免重复拉取
     const cacheKey = apiId + '::' + query;
     const cached = __searchCacheGet(cacheKey);
@@ -61,6 +61,12 @@ async function searchByAPIAndKeyWord(apiId, query) {
         // 添加超时处理（10s：过长的源直接跳过，避免拖慢整体搜索）
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
+        // 外部取消(搜索限流/重复搜索时父级传入的 signal)
+        if (outerSignal) {
+            const onOuterAbort = () => { controller.abort(); clearTimeout(timeoutId); };
+            if (outerSignal.aborted) { controller.abort(); clearTimeout(timeoutId); }
+            else outerSignal.addEventListener('abort', onOuterAbort, { once: true });
+        }
         
         // 添加鉴权参数到代理URL
         const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 

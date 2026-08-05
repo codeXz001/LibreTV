@@ -88,6 +88,8 @@ function ensurePlayerLibs() {
                         // 拦截 manifest 和 level 请求
                         if (context.type === 'manifest' || context.type === 'level') {
                             const onSuccess = callbacks.onSuccess;
+                            const origOnError = callbacks.onError;
+
                             callbacks.onSuccess = function (response, stats, context) {
                                 // 直连模式:分片 URL 保持源站原样,仅做广告分段过滤
                                 if (response.data && typeof response.data === 'string') {
@@ -96,6 +98,26 @@ function ensurePlayerLibs() {
                                     }
                                 }
                                 return onSuccess(response, stats, context);
+                            };
+
+                            callbacks.onError = function (err, networkDetails) {
+                                // 直连失败自动回退代理:仅 manifest/level 级,分片级不触发(避免抖断整条流)
+                                // 实例级标记只回退一次,防止循环
+                                if (!this._proxyRetried && context.url && !context.url.startsWith(PROXY_URL)) {
+                                    this._proxyRetried = true;
+                                    const proxyFallback = localStorage.getItem('proxyFallbackEnabled') !== 'false';
+                                    if (proxyFallback && window.ProxyAuth && window.ProxyAuth.addAuthToProxyUrl) {
+                                        const fallbackUrl = PROXY_URL + encodeURIComponent(context.url);
+                                        window.ProxyAuth.addAuthToProxyUrl(fallbackUrl)
+                                            .then(proxiedUrl => {
+                                                console.warn('[代理回退] manifest/level 直连失败,尝试代理:', proxiedUrl);
+                                                load.call(this, { ...context, url: proxiedUrl }, config, callbacks);
+                                            })
+                                            .catch(() => origOnError.call(this, err, networkDetails));
+                                        return; // 吞掉本次错误,不冒泡
+                                    }
+                                }
+                                return origOnError.call(this, err, networkDetails);
                             };
                         }
                         // 执行原始load方法
@@ -131,11 +153,58 @@ let shortcutHintTimeout = null; // 用于控制快捷键提示显示时间
 let adFilteringEnabled = true; // 默认开启广告过滤
 let progressSaveInterval = null; // 定期保存进度的计时器
 let currentVideoUrl = ''; // 记录当前实际的视频URL
+let currentSourceCode = ''; // 当前播放源(与 URL 参数同步,换源热切换时更新)
+let switchResourceResults = {}; // sourceKey -> { vod_id, vod_name, vod_pic }:可切换源聚合信息(重渲染用)
+let switchSpeedCache = {};      // 'sourceKey:vodId' -> 测速结果:会话内记忆,换源后重渲染不再重复测速
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 
 // —— 直连播放 ——
 // 源站 m3u8 直接加载,不走代理(2026-08-05 决策:多个源站对 Cloudflare Workers
 // 出口 IP 有风控,直连反而最稳;CORS/混合内容由浏览器与源站自身策略决定)。
+
+// 播放页冷启动封面占位:播放器库下载 / 首个 m3u8 加载期间,
+// 在占位层显示影片封面(来源:首页聚合组 aggregatedSources 或详情持久缓存),
+// 替代纯黑背景,提升首屏感知速度;无封面或加载失败则维持现状(纯渐变)。
+function showPlayerPosterPlaceholder() {
+    try {
+        const overlay = document.querySelector('.player-loading-overlay');
+        if (!overlay) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const title = urlParams.get('title') || '';
+        let posterUrl = '';
+
+        // 1. 聚合组(首页聚合详情写入,含封面)
+        const raw = localStorage.getItem('aggregatedSources');
+        if (raw) {
+            const items = JSON.parse(raw);
+            if (Array.isArray(items) && items.length) {
+                const norm = s => String(s || '').toLowerCase().replace(/[\s　()（）[\]【】《》·:：\-_]/g, '');
+                const t = norm(title);
+                const match = items.find(it => it.vod_pic && norm(it.vod_name) === t) || items.find(it => it.vod_pic);
+                if (match) posterUrl = match.vod_pic;
+            }
+        }
+        // 2. 详情持久缓存(videoInfo.cover)
+        if (!posterUrl) {
+            const source = urlParams.get('source') || '';
+            const id = urlParams.get('id') || '';
+            if (source && id) {
+                const cached = getCachedDetailData(id, source);
+                if (cached && cached.videoInfo && cached.videoInfo.cover) posterUrl = cached.videoInfo.cover;
+            }
+        }
+        if (!posterUrl || !/^https?:\/\//i.test(posterUrl)) return;
+
+        // 封面作为占位背景(半透明遮罩保证 spinner/文字可见)
+        const safeUrl = posterUrl.replace(/"/g, '\\"');
+        overlay.style.background =
+            `linear-gradient(rgba(10,14,20,0.35), rgba(10,14,20,0.75)), url("${safeUrl}") center/cover no-repeat, radial-gradient(120% 120% at 50% 40%, #141c2b 0%, #0a0e14 70%)`;
+        // 封面加载失败时回退纯渐变
+        const probe = new Image();
+        probe.onerror = () => { if (overlay.style.background) overlay.style.background = ''; };
+        probe.src = posterUrl;
+    } catch (e) { /* 占位失败不影响播放 */ }
+}
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
@@ -152,6 +221,12 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('player-loading').style.display = 'none';
         return;
     }
+
+    // 冷启动封面占位 + 加载文案显示片名(播放器库下载期间)
+    showPlayerPosterPlaceholder();
+    const loadingTitleEl = document.getElementById('loading-title');
+    const titleParam = new URLSearchParams(window.location.search).get('title');
+    if (loadingTitleEl && titleParam) loadingTitleEl.textContent = titleParam;
 
     // 立即并行预热播放器库（preload 之外的双保险）：
     // 不等 initializePageContent 的 URL 解析/历史恢复逻辑，首帧更早。
@@ -1527,7 +1602,7 @@ async function loadSwitchSourceList() {
     sourceListEl.dataset.loading = '1';
 
     const urlParams = new URLSearchParams(window.location.search);
-    const currentSourceCode = urlParams.get('source');
+    currentSourceCode = urlParams.get('source') || '';
     const currentVideoId = urlParams.get('id');
 
     // 收集所有可选源
@@ -1581,19 +1656,32 @@ async function loadSwitchSourceList() {
         return;
     }
 
-    // 同时测试所有资源的速率
+    // 同时测试所有资源的速率(测速结果按 源:视频 记忆,换源后重渲染不再重复测速)
     sourceListEl.innerHTML = '<div class="col-span-full text-center text-gray-400 py-3 text-sm">正在测试各资源速率...</div>';
     const speedResults = {};
+    switchResourceResults = allResults;
     await Promise.all(Object.entries(allResults).map(async ([sourceKey, result]) => {
         if (result) {
             speedResults[sourceKey] = await testVideoSourceSpeed(sourceKey, result.vod_id);
+            switchSpeedCache[sourceKey + ':' + result.vod_id] = speedResults[sourceKey];
         }
     }));
 
+    renderSourceList(allResults, speedResults);
+}
+
+// 渲染可切换源按钮列表:当前播放源置顶,其余按测速排序(热切换重渲染时复用,不重新测速)
+function renderSourceList(allResults, speedResults) {
+    const sourceListEl = document.getElementById('sourceList');
+    if (!sourceListEl) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const curSource = urlParams.get('source') || '';
+    const curVideoId = urlParams.get('id');
+
     // 当前播放的源放最前面，其余按照速度排序（速度为 -1 表示失败，排到最后）
     const sortedResults = Object.entries(allResults).sort(([keyA, resultA], [keyB, resultB]) => {
-        const isCurrentA = String(keyA) === String(currentSourceCode) && String(resultA.vod_id) === String(currentVideoId);
-        const isCurrentB = String(keyB) === String(currentSourceCode) && String(resultB.vod_id) === String(currentVideoId);
+        const isCurrentA = String(keyA) === String(curSource) && String(resultA.vod_id) === String(curVideoId);
+        const isCurrentB = String(keyB) === String(curSource) && String(resultB.vod_id) === String(curVideoId);
 
         if (isCurrentA && !isCurrentB) return -1;
         if (!isCurrentA && isCurrentB) return 1;
@@ -1614,8 +1702,8 @@ async function loadSwitchSourceList() {
         if (!result) continue;
 
         // 修复 isCurrentSource 判断，确保类型一致
-        const isCurrentSource = String(sourceKey) === String(currentSourceCode) && String(result.vod_id) === String(currentVideoId);
-        const sourceName = resourceOptions.find(opt => opt.key === sourceKey)?.name || '未知资源';
+        const isCurrentSource = String(sourceKey) === String(curSource) && String(result.vod_id) === String(curVideoId);
+        const sourceName = getSourceDisplayName(sourceKey);
         const speedResult = speedResults[sourceKey] || { speed: -1, error: '未测试' };
         const safeSourceKey = String(sourceKey).replace(/"/g, '&quot;');
         const safeVodId = String(result.vod_id).replace(/"/g, '&quot;');
@@ -1633,6 +1721,8 @@ async function loadSwitchSourceList() {
         `;
     }
     sourceListEl.innerHTML = html;
+    // 清掉加载中标记:热切换重渲染后,下次进入仍可触发完整刷新
+    delete sourceListEl.dataset.loading;
 
     // 事件委托：点击源选项直接切换（一次绑定）
     if (!sourceListEl.dataset.bound) {
@@ -1647,54 +1737,36 @@ async function loadSwitchSourceList() {
     }
 }
 
-// 测试视频源速率的函数
+// 源显示名(内置源取配置名,自定义源取自定义名)
+function getSourceDisplayName(sourceKey) {
+    if (API_SITES[sourceKey]) return API_SITES[sourceKey].name;
+    const customIndex = parseInt(String(sourceKey).replace('custom_', ''), 10);
+    if (customAPIs[customIndex]) return customAPIs[customIndex].name || '自定义资源';
+    return '未知资源';
+}
+
+// 测试视频源速率的函数(详情走统一共享缓存:首页拉过的源 0 请求;测速结果同时带回剧集数据)
 async function testVideoSourceSpeed(sourceKey, vodId) {
     try {
         const startTime = performance.now();
-        
-        // 构建API参数
-        let apiParams = '';
-        if (sourceKey.startsWith('custom_')) {
-            const customIndex = sourceKey.replace('custom_', '');
-            const customApi = getCustomApiInfo(customIndex);
-            if (!customApi) {
-                return { speed: -1, error: 'API配置无效' };
-            }
-            if (customApi.detail) {
-                apiParams = '&customApi=' + encodeURIComponent(customApi.url) + '&customDetail=' + encodeURIComponent(customApi.detail) + '&source=custom';
-            } else {
-                apiParams = '&customApi=' + encodeURIComponent(customApi.url) + '&source=custom';
-            }
-        } else {
-            apiParams = '&source=' + sourceKey;
-        }
-        
-        // 添加时间戳防止缓存
-        const timestamp = new Date().getTime();
-        const cacheBuster = `&_t=${timestamp}`;
-        
-        // 获取视频详情
-        const response = await fetch(`/api/detail?id=${encodeURIComponent(vodId)}${apiParams}${cacheBuster}`, {
-            method: 'GET',
-            cache: 'no-cache'
-        });
-        
-        if (!response.ok) {
+
+        // 获取视频详情(统一缓存层:命中则无上游请求)
+        const data = await fetchDetailDataShared(vodId, sourceKey);
+
+        if (!data) {
             return { speed: -1, error: '获取失败' };
         }
-        
-        const data = await response.json();
-        
+
         if (!data.episodes || data.episodes.length === 0) {
             return { speed: -1, error: '无播放源' };
         }
-        
+
         // 测试第一个播放链接的响应速度
         const firstEpisodeUrl = data.episodes[0];
         if (!firstEpisodeUrl) {
             return { speed: -1, error: '链接无效' };
         }
-        
+
         // 测试视频链接响应时间
         const videoTestStart = performance.now();
         try {
@@ -1704,31 +1776,33 @@ async function testVideoSourceSpeed(sourceKey, vodId) {
                 cache: 'no-cache',
                 signal: AbortSignal.timeout(5000) // 5秒超时
             });
-            
+
             const videoTestEnd = performance.now();
             const totalTime = videoTestEnd - startTime;
-            
-            // 返回总响应时间（毫秒）
-            return { 
+
+            // 返回总响应时间（毫秒）,并携带完整剧集数据供热切换复用
+            return {
                 speed: Math.round(totalTime),
-                episodes: data.episodes.length,
-                error: null 
+                episodes: data.episodes,
+                vod_name: data.vod_name || '',
+                error: null
             };
         } catch (videoError) {
             // 如果视频链接测试失败，只返回API响应时间
             const apiTime = performance.now() - startTime;
-            return { 
+            return {
                 speed: Math.round(apiTime),
-                episodes: data.episodes.length,
+                episodes: data.episodes,
+                vod_name: data.vod_name || '',
                 error: null,
-                note: 'API响应' 
+                note: 'API响应'
             };
         }
-        
+
     } catch (error) {
-        return { 
-            speed: -1, 
-            error: error.name === 'AbortError' ? '超时' : '测试失败' 
+        return {
+            speed: -1,
+            error: error.name === 'AbortError' ? '超时' : '测试失败'
         };
     }
 }
@@ -1774,63 +1848,121 @@ function getAggregatedSourcesForTitle(title) {
     }
 }
 
-// 切换资源的函数
+// 切换资源的函数(同页热切换:不整页跳转,复用播放器实例;仅 webkit / 无 art 时 rebuild)
 async function switchToResource(sourceKey, vodId) {
+    // 热切换逃生门:个别源 m3u8 异常导致黑屏时,可设置 localStorage.hotSwitchEnabled='false' 回退整页跳转
+    if (localStorage.getItem('hotSwitchEnabled') === 'false') {
+        return legacySwitchToResource(sourceKey, vodId);
+    }
     showLoading();
     try {
-        // 构建API参数
-        let apiParams = '';
-        
-        // 处理自定义API源
-        if (sourceKey.startsWith('custom_')) {
-            const customIndex = sourceKey.replace('custom_', '');
-            const customApi = getCustomApiInfo(customIndex);
-            if (!customApi) {
-                showToast('自定义API配置无效', 'error');
-                hideLoading();
-                return;
-            }
-            // 传递 detail 字段
-            if (customApi.detail) {
-                apiParams = '&customApi=' + encodeURIComponent(customApi.url) + '&customDetail=' + encodeURIComponent(customApi.detail) + '&source=custom';
-            } else {
-                apiParams = '&customApi=' + encodeURIComponent(customApi.url) + '&source=custom';
-            }
-        } else {
-            // 内置API
-            apiParams = '&source=' + sourceKey;
-        }
-        
-        // Add a timestamp to prevent caching
-        const timestamp = new Date().getTime();
-        const cacheBuster = `&_t=${timestamp}`;
-        const response = await fetch(`/api/detail?id=${encodeURIComponent(vodId)}${apiParams}${cacheBuster}`);
-        
-        const data = await response.json();
-        
-        if (!data.episodes || data.episodes.length === 0) {
+        // 从统一缓存层获取详情(首页已拉过的源 0 请求)
+        const data = await fetchDetailDataShared(vodId, sourceKey);
+
+        if (!data || !data.episodes || data.episodes.length === 0) {
             showToast('未找到播放资源', 'error');
             hideLoading();
             return;
         }
 
-        // 获取当前播放的集数索引
-        const currentIndex = currentEpisodeIndex;
-        
-        // 确定要播放的集数索引
+        // 确定要播放的集数索引:当前集若在新源中存在则保留,否则第 0 集
         let targetIndex = 0;
-        if (currentIndex < data.episodes.length) {
-            // 如果当前集数在新资源中存在，则使用相同集数
-            targetIndex = currentIndex;
+        if (currentEpisodeIndex < data.episodes.length) {
+            targetIndex = currentEpisodeIndex;
+        } else {
+            showToast('当前集在新源中不存在，已切换到第 1 集', 'info');
         }
-        
-        // 获取目标集数的URL
         const targetUrl = data.episodes[targetIndex];
-        
-        // 构建播放页面URL
-        const watchUrl = `player.html?id=${vodId}&source=${sourceKey}&url=${encodeURIComponent(targetUrl)}&index=${targetIndex}&title=${encodeURIComponent(currentVideoTitle)}`;
-        
-        // 保存当前状态到localStorage
+
+        // 保存播放状态到 localStorage(与整页跳转版一致,不刷新页面)
+        try {
+            localStorage.setItem('currentVideoTitle', data.vod_name || currentVideoTitle || '未知视频');
+            localStorage.setItem('currentEpisodes', JSON.stringify(data.episodes));
+            localStorage.setItem('currentEpisodeIndex', targetIndex);
+            localStorage.setItem('currentSourceCode', sourceKey);
+            localStorage.setItem('lastPlayTime', Date.now());
+        } catch (e) {
+            console.error('保存播放状态失败:', e);
+        }
+
+        // 同步状态变量
+        currentEpisodes = data.episodes;
+        currentEpisodeIndex = targetIndex;
+        currentVideoUrl = targetUrl;
+        currentSourceCode = sourceKey;
+        videoHasEnded = false;
+
+        // 更新 URL 参数(同页 replaceState,保持可刷新恢复)
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('source', sourceKey);
+        currentUrl.searchParams.set('url', targetUrl);
+        currentUrl.searchParams.set('index', targetIndex);
+        currentUrl.searchParams.set('id', vodId);
+        currentUrl.searchParams.delete('position');
+        window.history.replaceState({}, '', currentUrl.toString());
+
+        // 清除进度保存计时器
+        if (progressSaveInterval) {
+            clearInterval(progressSaveInterval);
+            progressSaveInterval = null;
+        }
+        document.getElementById('error').style.display = 'none';
+        document.getElementById('player-loading').style.display = 'flex';
+        document.getElementById('player-loading').innerHTML = `
+            <div class="loading-spinner"></div>
+            <div>正在加载视频...</div>
+        `;
+        clearVideoProgress();
+
+        // 热切换播放(与 playEpisode 同款分派)
+        if (isWebkit || !art) {
+            initPlayer(targetUrl).catch(err => console.error('切换源播放器初始化失败:', err));
+        } else {
+            art.switch = targetUrl;
+        }
+
+        // UI 联动:重渲染剧集列表与源信息(不重新测速,不发请求)
+        if (typeof renderEpisodes === 'function') renderEpisodes();
+        // 更新源名称徽标与视频计数(renderResourceInfoBar 会重建源列表并重测速,这里手动轻量更新)
+        const resourceNameEl = document.getElementById('resourceName');
+        if (resourceNameEl) resourceNameEl.textContent = getSourceDisplayName(sourceKey);
+        const videosCountEl = document.querySelector('.resource-info-bar-videos');
+        if (videosCountEl) videosCountEl.textContent = currentEpisodes.length + ' 个视频';
+        // 从测速缓存取旧值快速重渲染源按钮列表(不重新测速)
+        const speedResults = {};
+        Object.keys(switchResourceResults).forEach(k => {
+            const r = switchResourceResults[k];
+            speedResults[k] = switchSpeedCache[k + ':' + r.vod_id] || { speed: -1, error: '未测试' };
+        });
+        renderSourceList(switchResourceResults, speedResults);
+
+        // 重置用户点击位置
+        userClickedPosition = null;
+
+        // 三秒后保存到历史记录
+        setTimeout(() => typeof saveToHistory === 'function' && saveToHistory(), 3000);
+
+    } catch (error) {
+        console.error('切换资源失败:', error);
+        showToast('切换资源失败，请稍后重试', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// 热切换逃生门使用的旧版整页跳转实现(hotSwitchEnabled='false' 时启用)
+async function legacySwitchToResource(sourceKey, vodId) {
+    showLoading();
+    try {
+        const data = await fetchDetailDataShared(vodId, sourceKey);
+        if (!data || !data.episodes || data.episodes.length === 0) {
+            showToast('未找到播放资源', 'error');
+            hideLoading();
+            return;
+        }
+        const targetIndex = currentEpisodeIndex < data.episodes.length ? currentEpisodeIndex : 0;
+        const targetUrl = data.episodes[targetIndex];
+        const watchUrl = `player.html?id=${vodId}&source=${sourceKey}&url=${encodeURIComponent(targetUrl)}&index=${targetIndex}&title=${encodeURIComponent(currentVideoTitle || '')}`;
         try {
             localStorage.setItem('currentVideoTitle', data.vod_name || '未知视频');
             localStorage.setItem('currentEpisodes', JSON.stringify(data.episodes));
@@ -1840,10 +1972,7 @@ async function switchToResource(sourceKey, vodId) {
         } catch (e) {
             console.error('保存播放状态失败:', e);
         }
-
-        // 跳转到播放页面
         window.location.href = watchUrl;
-        
     } catch (error) {
         console.error('切换资源失败:', error);
         showToast('切换资源失败，请稍后重试', 'error');

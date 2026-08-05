@@ -111,6 +111,23 @@ function persistHomePool(catId, pool, srcIds) {
     }
 }
 
+// 持久化去抖 + 内容签名:连续 refill 只在 1 秒窗口内写一次,
+// 且池内容无实质变化时跳过(减少主线程序列化停顿与写放大)。
+let homePersistTimer = null;   // 去抖计时器(全局一个,按 key 惰性写入)
+let homePersistSig = '';       // 上次写入时的内容签名
+function schedulePersistHomePool(catId, pool, srcIds) {
+    if (!pool || !pool.items.length || !srcIds.length) return;
+    const sig = pool.items.length + ':' + getHomeSourceSignature(srcIds) + ':' +
+        Object.keys(pool.srcPages).map(k => pool.srcPages[k]).join(',');
+    if (homePersistTimer) clearTimeout(homePersistTimer);
+    homePersistTimer = setTimeout(() => {
+        homePersistTimer = null;
+        if (sig === homePersistSig) return; // 内容未变化,跳过冗余写
+        homePersistSig = sig;
+        persistHomePool(catId, pool, srcIds);
+    }, 1000);
+}
+
 function restoreHomePool(catId, srcIds) {
     if (!srcIds.length) return null;
     const key = getHomeCacheKey(catId, srcIds);
@@ -571,29 +588,35 @@ async function loadPoolCategory(seq, catId, hotSection, hotContainer, latestCont
 async function refillPool(catId) {
     const pool = homePools[catId];
     if (!pool) return;
+    // 池级防重入:SWR 后台刷新 / 滚动分页 / 分类预热三路并发时,只放行一路拉页
+    if (pool.refilling) return;
+    pool.refilling = true;
+    try {
+        // 资源采集站分类只拉标记为成人的源;其他分类排除成人源
+        const srcIds = getHomeSourceIds(catId);
+        if (!srcIds.length) return;
 
-    // 资源采集站分类只拉标记为成人的源;其他分类排除成人源
-    const srcIds = getHomeSourceIds(catId);
-    if (!srcIds.length) return;
+        const from = Math.max(0, ...Object.values(pool.srcPages)) + 1;
+        const to = from + PER_SOURCE_PAGES - 1;
 
-    const from = Math.max(0, ...Object.values(pool.srcPages)) + 1;
-    const to = from + PER_SOURCE_PAGES - 1;
+        const rounds = await mapLimit(srcIds, HOME_CONFIG.concurrency,
+            src => fetchSourceCategoryRange(src, catId, from, to));
 
-    const rounds = await mapLimit(srcIds, HOME_CONFIG.concurrency,
-        src => fetchSourceCategoryRange(src, catId, from, to));
+        rounds.forEach((r, i) => {
+            if (!r) return;
+            const srcId = srcIds[i];
+            pool.items.push(...r.items);
+            pool.srcPages[srcId] = Math.max(pool.srcPages[srcId] || 0, r.toPage);
+            pool.srcPageCount[srcId] = r.pagecount;
+        });
 
-    rounds.forEach((r, i) => {
-        if (!r) return;
-        const srcId = srcIds[i];
-        pool.items.push(...r.items);
-        pool.srcPages[srcId] = Math.max(pool.srcPages[srcId] || 0, r.toPage);
-        pool.srcPageCount[srcId] = r.pagecount;
-    });
-
-    pool.merged = mergeAndFilter([{ list: pool.items }], catId === 'adult');
-    pool.hasMore = srcIds.some(s => (pool.srcPages[s] || 0) < (pool.srcPageCount[s] || 1));
-    // 持久化轻量卡片数据，后续刷新可直接恢复首屏。
-    persistHomePool(catId, pool, srcIds);
+        pool.merged = mergeAndFilter([{ list: pool.items }], catId === 'adult');
+        pool.hasMore = srcIds.some(s => (pool.srcPages[s] || 0) < (pool.srcPageCount[s] || 1));
+        // 持久化轻量卡片数据,去抖限流,后续刷新可直接恢复首屏。
+        schedulePersistHomePool(catId, pool, srcIds);
+    } finally {
+        pool.refilling = false;
+    }
 }
 
 // 渲染池内容(热映取前 N,网格取一批)

@@ -9,6 +9,8 @@ let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存�
 let searchMode = JSON.parse(localStorage.getItem('searchMode') || '"multi"');
 // defaultSourceId: 首页与单源模式下的唯一查询源,值为 API key 或 'custom_<index>'
 let defaultSourceId = JSON.parse(localStorage.getItem('defaultSourceId') || 'null');
+let searchAbortController = null; // 会话级 AbortController:重复搜索时取消在途旧请求
+let searchSeq = 0;                // 搜索竞态序号:丢弃过期响应,与 homeReqSeq 思路相同
 
 window.searchMode = searchMode;
 window.defaultSourceId = defaultSourceId;
@@ -24,24 +26,8 @@ let currentVideoTitle = '';
 // 全局变量用于倒序状态
 let episodesReversed = false;
 
-// —— 详情请求内存缓存（TTL 5 分钟）——
-// 同一视频在短时间内重复打开时，直接复用已获取的剧集数据，
-// 避免每次都通过 /proxy/ 重新请求上游详情接口。
-const DETAIL_CACHE_TTL = 5 * 60 * 1000;
-const DETAIL_CACHE_MAX = 100; // 上限，防止长会话内存累积
-const detailCacheMap = new Map();
-function getCachedDetail(key) {
-    const hit = detailCacheMap.get(key);
-    if (hit && Date.now() - hit.ts < DETAIL_CACHE_TTL) return hit.data;
-    return null;
-}
-function setCachedDetail(key, data) {
-    detailCacheMap.set(key, { ts: Date.now(), data });
-    // 超出上限时淘汰最旧一条（FIFO）
-    if (detailCacheMap.size > DETAIL_CACHE_MAX) {
-        detailCacheMap.delete(detailCacheMap.keys().next().value);
-    }
-}
+// —— 详情请求统一层:转发到 api.js 的跨页共享缓存(30 分钟持久缓存 + 并发去重)——
+// 首页聚合详情拉过的数据,播放页换源时直接命中,消除重复 /api/detail 请求。
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function () {
@@ -976,10 +962,17 @@ async function search() {
         return;
     }
 
+    // 中止上一轮正在途的搜索请求
+    if (searchAbortController) searchAbortController.abort();
+    searchAbortController = new AbortController();
+    const thisSeq = ++searchSeq;
+    const outerSignal = searchAbortController.signal;
+
     // 搜索时用区域骨架屏替代全屏遮罩，减少打断感（结果区原地占位）
     renderSearchSkeletons();
     // 兜底超时保护：防止个别上游源长时间无响应拖住整个搜索
     const searchTimeoutGuard = setTimeout(() => {
+        if (thisSeq !== searchSeq) return; // 已有新搜索，丢弃旧超时
         showToast('搜索耗时较长，已自动停止', 'warning');
         hideLoading();
     }, 45000);
@@ -988,17 +981,14 @@ async function search() {
         // 保存搜索历史
         saveSearchHistory(query);
 
-        // 从所有选中的API源搜索
+        // 从所有选中的API源搜索(跨源限流6,避免同时打大量代理;旧请求通过outerSignal自动中止)
         let allResults = [];
         const searchSourceIds = typeof getSearchSourceIds === 'function'
             ? getSearchSourceIds()
             : selectedAPIs;
-        const searchPromises = searchSourceIds.map(apiId =>
-            searchByAPIAndKeyWord(apiId, query)
+        const resultsArray = await mapLimit(searchSourceIds, 6, apiId =>
+            searchByAPIAndKeyWord(apiId, query, outerSignal)
         );
-
-        // 等待所有搜索请求完成
-        const resultsArray = await Promise.all(searchPromises);
 
         // 合并所有结果
         resultsArray.forEach(results => {
@@ -1097,6 +1087,8 @@ async function search() {
         renderSearchResults(resultsDiv);
     } catch (error) {
         console.error('搜索错误:', error);
+        // 已被新搜索取代的旧请求静默退出,不弹误导提示(abort 是预期行为)
+        if (thisSeq !== searchSeq) return;
         const failMsg = error.name === 'AbortError'
             ? '搜索请求超时，请检查网络连接'
             : '搜索请求失败，请稍后重试';
@@ -1116,7 +1108,8 @@ async function search() {
         }
     } finally {
         clearTimeout(searchTimeoutGuard);
-        hideLoading();
+        // 旧搜索被取代时不动新搜索的 loading 状态
+        if (thisSeq === searchSeq) hideLoading();
     }
 }
 
@@ -1236,33 +1229,9 @@ function hookInput() {
 }
 document.addEventListener('DOMContentLoaded', hookInput);
 
-// 详情数据请求（带 5 分钟内存缓存），供单源详情与聚合详情复用
+// 详情数据请求(统一走 api.js 的跨页共享缓存),供单源详情与聚合详情复用
 async function fetchDetailData(id, sourceCode) {
-    if (!id) return null;
-    // 构建API参数
-    let apiParams = '';
-    if (sourceCode.startsWith('custom_')) {
-        const customIndex = sourceCode.replace('custom_', '');
-        const customApi = getCustomApiInfo(customIndex);
-        if (!customApi) return null;
-        apiParams = customApi.detail
-            ? '&customApi=' + encodeURIComponent(customApi.url) + '&customDetail=' + encodeURIComponent(customApi.detail) + '&source=custom'
-            : '&customApi=' + encodeURIComponent(customApi.url) + '&source=custom';
-    } else {
-        apiParams = '&source=' + sourceCode;
-    }
-
-    // 详情缓存：命中则跳过上游请求（剧集数据 5 分钟内有效）
-    const detailCacheKey = `${sourceCode}:${id}`;
-    let data = getCachedDetail(detailCacheKey);
-    if (!data) {
-        const timestamp = new Date().getTime();
-        const cacheBuster = `&_t=${timestamp}`;
-        const response = await fetch(`/api/detail?id=${encodeURIComponent(id)}${apiParams}${cacheBuster}`);
-        data = await response.json();
-        setCachedDetail(detailCacheKey, data);
-    }
-    return data;
+    return fetchDetailDataShared(id, sourceCode);
 }
 
 // 渲染详情主体 HTML（封面 + 信息 + 排序按钮 + 剧集网格），供单源与聚合详情复用

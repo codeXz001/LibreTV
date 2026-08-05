@@ -1,3 +1,108 @@
+// —— 详情数据统一缓存层(跨页面共享) ——
+// 首页(app.js)与播放页(player.html)是两个独立 HTML,内存缓存互不可达:
+// 首页聚合详情拉过的数据,播放页换源时用 localStorage 持久缓存直接命中,0 请求;
+// 同时做同 key 并发去重,测速与切换并发拉同一详情时只发一个上游请求。
+const DETAIL_CACHE_TTL = 30 * 60 * 1000;      // 30 分钟(与首页池持久缓存一致)
+const DETAIL_PERSIST_MAX = 40;                // 持久缓存条数上限,超限按 FIFO 淘汰
+const DETAIL_PERSIST_PREFIX = 'detailCache_v1:';
+const DETAIL_PERSIST_MAX_BYTES = 60 * 1024;   // 单条序列化超 60KB 只写内存不落盘(防撑爆配额)
+const detailMemCache = new Map();             // 会话内二级缓存,避免频繁读 localStorage
+const detailPendingMap = new Map();           // key -> Promise,同 key 在途请求去重
+
+function getDetailCacheKey(id, sourceCode) {
+    return DETAIL_PERSIST_PREFIX + sourceCode + ':' + id;
+}
+
+// 读缓存:内存 → localStorage,过期项惰性清理
+function getCachedDetailData(id, sourceCode) {
+    const key = getDetailCacheKey(id, sourceCode);
+    const mem = detailMemCache.get(key);
+    if (mem && Date.now() - mem.ts < DETAIL_CACHE_TTL) return mem.data;
+    if (mem) detailMemCache.delete(key);
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const cached = JSON.parse(raw);
+        if (!cached || !cached.ts || Date.now() - cached.ts >= DETAIL_CACHE_TTL || !cached.data) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        detailMemCache.set(key, { ts: cached.ts, data: cached.data });
+        return cached.data;
+    } catch (error) {
+        return null;
+    }
+}
+
+// 写缓存:内存必写;localStorage 限量限量限大小,写失败仅告警不影响主流程
+function setCachedDetailData(id, sourceCode, data) {
+    const key = getDetailCacheKey(id, sourceCode);
+    detailMemCache.set(key, { ts: Date.now(), data });
+    try {
+        const payload = JSON.stringify({ ts: Date.now(), data });
+        if (payload.length > DETAIL_PERSIST_MAX_BYTES) return;
+        localStorage.setItem(key, payload);
+        // 超出上限时按写入时间淘汰最旧一条(FIFO)
+        const prefixKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(DETAIL_PERSIST_PREFIX)) prefixKeys.push(k);
+        }
+        if (prefixKeys.length > DETAIL_PERSIST_MAX) {
+            const withTs = prefixKeys.map(k => {
+                try { return { k, ts: JSON.parse(localStorage.getItem(k) || '{}').ts || 0 }; }
+                catch { return { k, ts: 0 }; }
+            });
+            withTs.sort((a, b) => a.ts - b.ts);
+            withTs.slice(0, withTs.length - DETAIL_PERSIST_MAX)
+                .forEach(({ k }) => localStorage.removeItem(k));
+        }
+    } catch (error) {
+        console.warn('[详情缓存] 持久化失败:', error.message);
+    }
+}
+
+// 统一详情获取:命中缓存 0 请求;同 key 并发共享同一在途 Promise
+// (播放页未加载 app.js 时 getCustomApiInfo 不存在,自定义源返回 null,与现状行为一致)
+async function fetchDetailDataShared(id, sourceCode) {
+    if (!id || !sourceCode) return null;
+    const cached = getCachedDetailData(id, sourceCode);
+    if (cached) return cached;
+
+    const key = getDetailCacheKey(id, sourceCode);
+    if (detailPendingMap.has(key)) return detailPendingMap.get(key);
+
+    const promise = (async () => {
+        // 构建 API 参数(内置源 / 自定义源)
+        let apiParams = '';
+        if (sourceCode.startsWith('custom_')) {
+            if (typeof getCustomApiInfo !== 'function') return null;
+            const customApi = getCustomApiInfo(sourceCode.replace('custom_', ''));
+            if (!customApi) return null;
+            apiParams = customApi.detail
+                ? '&customApi=' + encodeURIComponent(customApi.url) + '&customDetail=' + encodeURIComponent(customApi.detail) + '&source=custom'
+                : '&customApi=' + encodeURIComponent(customApi.url) + '&source=custom';
+        } else {
+            apiParams = '&source=' + sourceCode;
+        }
+
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/detail?id=${encodeURIComponent(id)}${apiParams}&_t=${timestamp}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        // 只有成功响应才缓存(失败/无数据不缓存,下次可重试)
+        if (data && data.code === 200) setCachedDetailData(id, sourceCode, data);
+        return data;
+    })();
+
+    detailPendingMap.set(key, promise);
+    try {
+        return await promise;
+    } finally {
+        detailPendingMap.delete(key);
+    }
+}
+
 // 改进的API请求处理函数
 async function handleApiRequest(url) {
     const customApi = url.searchParams.get('customApi') || '';
